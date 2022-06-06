@@ -8,7 +8,7 @@ from .SPCDate import SPCDate
 from .common import fit_byte_block, RES_DESC_LIMIT, SPARE_LIMIT, \
     MEMO_LIMIT, AXES_LIMIT, SRC_INSTRUMENT_LIMIT, RESERVE_LIMIT, METHOD_FILE_LIMIT
 from .SPCEnums import SPCFileType, SPCModFlags, SPCPostDisposition, \
-   SPCProcessCode, SPCSubfileFlags, SPCTechType, SPCXType, SPCYType
+   SPCProcessCode, SPCTechType, SPCXType, SPCYType
 
 log = logging.getLogger(__name__)
 

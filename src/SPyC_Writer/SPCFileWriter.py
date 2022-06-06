@@ -35,13 +35,11 @@ SOFTWARE.
 # XYXYXY files are successfully parsed by spectragryph and rohanisaac
 # KIA states they are invalid though.
 
-import os
-import sys
 import math
 import logging
 from struct import pack
 from datetime import datetime
-from dataclasses import dataclass, field
+from dataclasses import field
 
 import numpy as np
 

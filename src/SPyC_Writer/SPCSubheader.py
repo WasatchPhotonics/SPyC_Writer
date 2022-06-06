@@ -1,9 +1,7 @@
 from struct import pack
 from dataclasses import dataclass
 
-
-from .SPCEnums import SPCFileType, SPCModFlags, SPCPostDisposition, \
-   SPCProcessCode, SPCSubfileFlags, SPCTechType, SPCXType, SPCYType
+from .SPCEnums import SPCSubfileFlags
 
 @dataclass
 class SPCSubheader:
