@@ -1,6 +1,7 @@
 # SPyC_Writer
 A writer for the Thermo Galactic SPC file format, written in Python. Only outside library used is numpy. 
 The remainder of libraries used all come from the python standard library.
+Other outside libraries are used for testing, but the core module does not use them.
 
 The module has been cross validated using https://github.com/rohanisaac/spc and [spectragryph](https://www.effemm2.de/spectragryph/)
 by parsing the output file and verifying it matches what is expected.
