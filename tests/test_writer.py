@@ -66,7 +66,7 @@ class TestWritingParse:
             return False
 
     @given(st.lists(st.floats(width=16, allow_infinity=False, allow_nan=False), min_size=2, max_size=30))
-    @settings(deadline=None)
+    @settings(deadline=None, max_examples=30)
     def test_y_format(self, y_values: list[float]) -> None:
         writer = SPCFileWriter(SPCFileType.DEFAULT)
         y_values = np.asarray(y_values)
@@ -76,7 +76,7 @@ class TestWritingParse:
 
 
     @given(rectangle_lists)
-    @settings(deadline=None)
+    @settings(deadline=None, max_examples=30)
     def test_xy_format(self, arr_values: list[float]) -> None:
         log.debug("testing xy format")
         y_values = arr_values[0]
@@ -93,7 +93,8 @@ class TestWritingParse:
             st.lists(
                 st.floats(width=16), min_size=10, max_size=10),
                 min_size=2))
-    def ytest_yyy_format(self, y_values: list[float]) -> None:
+    @settings(deadline=None, max_examples=30)
+    def test_yyy_format(self, y_values: list[float]) -> None:
         """
         File type is tested even though KIA lists invalid while others parse successfully
         """
