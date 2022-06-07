@@ -20,6 +20,7 @@ parsing.
 	- Allow old file format
 	- Provide option for not writing as IEEE float
 - Expand tests
+- Expand input validation and provide informative error messages for wrong input
 
 ## References
 The Thermo Galactic spc-sdk code:

@@ -114,8 +114,8 @@ class SPCHeader:
             ]
         file_header = b"".join(field_bytes)
 
-        if len(file_header) < 512:
-            log.error(f"file_header length is less than 512 length was {len(file_header)}") # this shouldn't happen
+        if len(file_header) != 512:
+            log.error(f"file_header length is not 512 length was {len(file_header)}") # this shouldn't happen
             raise
         return file_header
 

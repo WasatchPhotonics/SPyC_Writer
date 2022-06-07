@@ -137,6 +137,22 @@ class SPCFileWriter:
         self.log_data = log_data
         self.log_text = log_text
 
+    def validate_inputs(self, x_values, y_values, z_values, w_values) -> bool:
+        if x_values.size != 0 and y_values.size != 0 and not (x_values.size == y_values.size):
+            log.error(f"got x and y values of different size. Arrays must be so same length.")
+            return False
+        if x_values.size == 0:
+            if self.file_type == SPCFileType.TXVALS:
+                log.error(f"no x values received but file type is a shared x values type")
+                return False
+            self.first_x = 0
+            self.last_x = len(y_values)
+        else:
+            self.first_x = np.amin(x_values)
+            self.last_x = np.amax(x_values)
+        return True
+
+
     def write_spc_file(self,
                        file_name: str, 
                        y_values: np.ndarray,
@@ -146,15 +162,9 @@ class SPCFileWriter:
                        ) -> bool:
         file_output = b""
         generate_log = False
-        if x_values.size == 0:
-            if self.file_type == SPCFileType.TXVALS:
-                log.error(f"no x values received but file type is a shared x values type")
-                return False
-            first_x = 0
-            last_x = len(y_values)
-        else:
-            first_x = np.amin(x_values)
-            last_x = np.amax(x_values)
+        if not self.validate_inputs(x_values, y_values, z_values, w_values):
+            log.error(f"invalid inputs, returning false")
+            return False
         if not (self.file_type & SPCFileType.TMULTI):
             points_count = len(y_values)
         elif self.file_type & SPCFileType.TMULTI and not (self.file_type & SPCFileType.TXYXYS):
@@ -187,8 +197,8 @@ class SPCFileWriter:
             x_values = x_values,
             y_values = y_values,
             experiment_type = self.experiment_type,
-            first_x = first_x,
-            last_x = last_x,
+            first_x = self.first_x,
+            last_x = self.last_x,
             num_subfiles = num_traces,
             x_units = self.x_units,
             y_units = self.y_units,
