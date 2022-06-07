@@ -131,6 +131,8 @@ dmypy.json
 .vs
 out.txt
 err.txt
+.pypirc
 
 # Used by test scripts to output spc files
 SPC_Output/*
+
