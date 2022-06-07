@@ -159,11 +159,11 @@ class SPCFileWriter:
             points_count = len(y_values)
         elif self.file_type & SPCFileType.TMULTI and not (self.file_type & SPCFileType.TXYXYS):
             points_count = len(y_values[0]) # since x values are evenly spaced y values shouldn't be jagged array
-            self.exponent = self.calculate_exponent(x_values)
         else:
             # num_points for XYXYXY is instead supposed to be the byte offset to the directory
             # or null and there is no directory
             points_count = 0 
+            self.exponent = self.calculate_exponent(x_values, y_values)
         if len(y_values.shape) == 1:
             num_traces = 1
         else:
