@@ -70,7 +70,7 @@ class TestWritingParse:
             log.debug(f"sub is {data.sub[0].__dict__}")
             return False
 
-    @given(st.lists(st.floats(width=16, allow_infinity=False, allow_nan=False), min_size=2, max_size=30))
+    @given(st.lists(st.floats(width=16, allow_nan=False), min_size=2, max_size=30))
     @settings(deadline=None, max_examples=30)
     def test_y_format(self, y_values: list[float]) -> None:
         writer = SPCFileWriter(SPCFileType.DEFAULT)
