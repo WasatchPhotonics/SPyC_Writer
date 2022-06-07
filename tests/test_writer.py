@@ -93,7 +93,7 @@ class TestWritingParse:
         assert self.comapre_spc_file_array(file_output, x_values, axis="x-xy") and self.comapre_spc_file_array(file_output, y_values), "xy format spc output array doesn't match parse"
 
     @given(rectangle_lists)
-    @settings(deadline=None, max_examples=3)
+    @settings(deadline=None, max_examples=30)
     def test_yyy_format(self, y_values: list[float]) -> None:
         """
         File type is tested even though KIA lists invalid while others parse successfully
