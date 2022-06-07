@@ -1,7 +1,10 @@
+import logging
 from struct import pack
 from dataclasses import dataclass
 
 from .SPCEnums import SPCSubfileFlags
+
+log = logging.getLogger(__name__)
 
 @dataclass
 class SPCSubheader:
@@ -48,4 +51,7 @@ class SPCSubheader:
                               Bw_axis_value,
                               extra
                               ])
+        if len(subheader) != 32:
+            log.critical(f"This shouldn't happen. Subheader length wasn't 32. Was {len(subheader)}")
+            raise RuntimeError("Subheader invalid length")
         return subheader

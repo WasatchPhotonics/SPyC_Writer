@@ -48,7 +48,7 @@ class SPCHeader:
     sample_inject: int = b"\x00\x00" # (fsampin) spc.h lists 1 as valid, old format doc says only for galactic internal use and should be null
     data_mul: float = b"\x00\x00\x00\x00" # (ffactor) old format doc says galactic internal use only and should be null
     method_file: str = b"\x00" # (fmethod) according to pdf it seems to just be the string rep of a file name for program data. Although old doc also says this should be null
-    z_subfile_inc: float = 0.0 # (fzinc)
+    z_subfile_inc: float = 1.0 # (fzinc)
     num_w_planes: float = 0 # (fwplanes)
     w_plane_inc: float = 0.0 # (fwinc)
     w_units: SPCXType = SPCXType.SPCXArb # (freserv)
@@ -115,8 +115,8 @@ class SPCHeader:
         file_header = b"".join(field_bytes)
 
         if len(file_header) != 512:
-            log.error(f"file_header length is not 512 length was {len(file_header)}") # this shouldn't happen
-            raise
+            log.critical(f"file_header length is not 512 length was {len(file_header)}") # this shouldn't happen
+            raise RuntimeError("Header incorrect length")
         return file_header
 
     def calc_log_offset(self, 

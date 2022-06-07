@@ -16,9 +16,14 @@ from SPyC_Writer.SPCEnums import SPCFileType
 
 # from hyptohesis docs. Allows for multidim lists with same length
 # https://hypothesis.readthedocs.io/en/latest/data.html
-rectangle_lists = st.floats(width=16).flatmap(
-    lambda n: st.lists(st.lists(st.floats(width=16), min_size=2, max_size=8), min_size=2,max_size=2)
+two_rectangle_lists = st.integers(min_value=2, max_value=10).flatmap(
+    lambda n: st.lists(st.lists(st.floats(width=16), min_size=2, max_size=n), min_size=2,max_size=2)
 ).filter(lambda x: len(x[0]) == len(x[1]))
+
+# flatmap on a tuple, first element is number of columns, second element is max number of rows
+rectangle_lists = st.tuples(st.integers(min_value=2, max_value=10), st.integers(min_value=2, max_value=10)).flatmap(
+    lambda n : st.lists(st.lists(st.floats(width=16), min_size=n[0], max_size=n[0]), min_size=2,max_size=n[1])
+)
 
 log = logging.getLogger(__name__)
 @pytest.fixture
@@ -74,8 +79,7 @@ class TestWritingParse:
         writer.write_spc_file(file_output, y_values=y_values)
         assert self.comapre_spc_file_array(file_output, y_values), "y format spc output array doesn't match parse"
 
-
-    @given(rectangle_lists)
+    @given(two_rectangle_lists)
     @settings(deadline=None, max_examples=30)
     def test_xy_format(self, arr_values: list[float]) -> None:
         log.debug("testing xy format")
@@ -84,22 +88,18 @@ class TestWritingParse:
         writer = SPCFileWriter(SPCFileType.TXVALS)
         y_values = np.asarray(y_values)
         x_values = np.asarray(x_values)
-        file_output = os.path.join(self.OUTPUT_DIR, f"spc_y_output{datetime.datetime.now().strftime('%H_%M_%S_%f')}.spc")
+        file_output = os.path.join(self.OUTPUT_DIR, f"spc_xy_output{datetime.datetime.now().strftime('%H_%M_%S_%f')}.spc")
         writer.write_spc_file(file_output, y_values=y_values, x_values=x_values)
         assert self.comapre_spc_file_array(file_output, x_values, axis="x-xy") and self.comapre_spc_file_array(file_output, y_values), "xy format spc output array doesn't match parse"
 
-    @given(
-        st.lists(
-            st.lists(
-                st.floats(width=16), min_size=10, max_size=10),
-                min_size=2))
-    @settings(deadline=None, max_examples=30)
+    @given(rectangle_lists)
+    @settings(deadline=None, max_examples=3)
     def test_yyy_format(self, y_values: list[float]) -> None:
         """
         File type is tested even though KIA lists invalid while others parse successfully
         """
         writer = SPCFileWriter(SPCFileType.TMULTI)
-        y_values = np.asarray(y_values)
-        file_output = os.path.join(self.OUTPUT_DIR, f"spc_y_output{datetime.datetime.now().strftime('%H_%M_%S_%f')}.spc")
+        y_values = np.array(y_values)
+        file_output = os.path.join(self.OUTPUT_DIR, f"spc_yyy_output{datetime.datetime.now().strftime('%H_%M_%S_%f')}.spc")
         writer.write_spc_file(file_output, y_values=y_values)
         assert self.comapre_spc_file_array(file_output, y_values), "yyy format spc output array doesn't match parse"
