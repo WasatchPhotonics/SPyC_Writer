@@ -141,6 +141,5 @@ class TestWritingParse:
         comparison_inputs = [time.year, time.month, time.day, x_units, y_units, z_units, res_desc, src_instrument_desc]
         comparison_outputs = [data.year, data.month, data.day, data.fxtype, data.fytype, data.fztype, data.fres.decode("utf-8").replace("\x00",""), data.fsource.decode("utf-8").replace("\x00","")]
         comparison = [inputs == outputs for inputs, outputs in zip(comparison_inputs, comparison_outputs)]
-        log.debug(f"input data {comparison_inputs}\n and output data {comparison_outputs}\nheaders didn't match")
         assert all(comparison), f"input data {comparison_inputs}\n and output data {comparison_outputs}\nheaders didn't match"
 
