@@ -46,23 +46,22 @@ class TestWritingParse:
 
     def comapre_spc_file_array(self, file_name: str, original_arr: list, axis: str = "y"):
         data = spc.File(file_name)
-        match len(data.sub):
-            case 0:
-                file_arr = np.empty(shape=(0,))
-            case 1:
-                if axis == "x-xy":
-                    file_arr = data.x
-                elif axis == "xy":
-                    file_arr = data.sub[0].x
-                else:
-                    file_arr = data.sub[0].y
-            case _:
-                if axis == "x-xyxy":
-                    file_arr = data.x # should be one common x array
-                elif axis == "xyxy":
-                    file_arr = np.asarray([subf.x for subf in data.sub])
-                else:
-                    file_arr = np.asarray([subf.y for subf in data.sub])
+        if len(data.sub) == 0:
+            file_arr = np.empty(shape=(0,))
+        elif len(data.sub) == 1:
+            if axis == "x-xy":
+                file_arr = data.x
+            elif axis == "xy":
+                file_arr = data.sub[0].x
+            else:
+                file_arr = data.sub[0].y
+        else:
+            if axis == "x-xyxy":
+                file_arr = data.x # should be one common x array
+            elif axis == "xyxy":
+                file_arr = np.asarray([subf.x for subf in data.sub])
+            else:
+                file_arr = np.asarray([subf.y for subf in data.sub])
 
         if np.array_equal(file_arr, original_arr, equal_nan = True):
             return True
