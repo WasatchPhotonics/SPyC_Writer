@@ -229,16 +229,15 @@ class SPCFileWriter:
             if SPCFileType.TXYXYS & self.file_type:
                 points_count = len(y_values[i]) # inverse from header, header it is 0, here it's the length of a specific y input
             sub_header = b""
-            match len(z_values):
-                case 0:
+            if len(z_values) == 0:
+                z_val = 0
+            elif len(z_values) == 1:
+                z_val = z_values[0]
+            else:
+                try:
+                    z_val = z_values[i]
+                except:
                     z_val = 0
-                case 1:
-                    z_val = z_values[0]
-                case _:
-                    try:
-                        z_val = z_values[i]
-                    except:
-                        z_val = 0
 
             subheader = SPCSubheader(start_z = z_val,
                                    sub_index = i, 
