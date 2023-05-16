@@ -138,7 +138,7 @@ class SPCFileWriter:
         self.log_text = log_text
 
     def validate_inputs(self, x_values, y_values, z_values, w_values) -> bool:
-        if x_values.size != 0 and y_values.size != 0 and not (x_values.size == y_values.size):
+        if x_values.size != 0 and y_values.size != 0 and not (x_values.size == y_values[1].size):
             log.error(f"got x and y values of different size. Arrays must be so same length.")
             return False
         if x_values.size == 0:
@@ -221,6 +221,7 @@ class SPCFileWriter:
             file_output = b"".join([file_output, Bx_values]) # x values should be a flat array so shouldn't be any issues with this
 
         dir_pointers = []
+        subfiles = []
         for i in range(num_traces):
             subfile = b""
             w_val = 0
@@ -248,16 +249,19 @@ class SPCFileWriter:
                 by = self.convert_points(y_values[i], "<f4")
                 sub_head = subheader.generate_subheader()
                 subfile = b"".join([sub_head, bx, by])
+                subfiles.append(subfile)
             elif self.file_type & SPCFileType.TMULTI and not (self.file_type & SPCFileType.TXYXYS):
                 sub_head = subheader.generate_subheader()
                 subfile = b"".join([sub_head, self.convert_points(y_values[i], "<f4")])
+                subfiles.append(subfile)
             else:
                 sub_head = subheader.generate_subheader()
                 subfile = b"".join([sub_head, By_values])
+                subfiles.append(subfile)
 
             pointer = self.generate_dir_pointer(len(file_output), len(subfile), z_val)
             dir_pointers.append(pointer)
-            file_output = b"".join([file_output, subfile])
+        file_output = b"".join([file_output]+ subfiles)
 
         if self.file_type & SPCFileType.TXVALS and self.file_type & SPCFileType.TXYXYS:
             file_output = b"".join([file_output, b"".join(dir_pointers)])
