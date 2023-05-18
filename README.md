@@ -10,6 +10,8 @@ Validation has been done on Y, XY, XYYY, and XYXYXY file types. All instances we
 [Wiley's Know It All](https://sciencesolutions.wiley.com/knowitall-spectroscopy-software/) was used also for validating and
 it successfully parsed all formats except XYXYXY, which it states is invalid.
 
+Use Python 3.10.
+
 ## Tests
 Tests are written using pytest and verified using https://github.com/rohanisaac/spc. This package appears to not
 have been updated in a while and contains a few errors, but it provides a straight forward interface in python for verifying
