@@ -47,7 +47,6 @@ import math
 import logging
 from struct import pack
 from datetime import datetime
-from dataclasses import field
 import numpy as np
 from .SPCLog import SPCLog
 from .SPCDate import SPCDate
@@ -74,7 +73,7 @@ class SPCFileWriter:
         file_version=75, experiment_type=SPCTechType.SPCTechGen, exponent=0,
         first_x=0, last_x=0, x_units=SPCXType.SPCXArb, y_units=SPCYType.
         SPCYArb, z_units=SPCXType.SPCXArb, res_desc='', src_instrument_desc
-        ='', custom_units=field(default_factory=list), memo='',
+        ='', custom_units=None, memo='',
         custom_axis_str='', spectra_mod_flag=SPCModFlags.UNMOD,
         z_subfile_inc=1.0, num_w_planes=0, w_plane_inc=1.0, w_units=
         SPCXType.SPCXArb, log_data=bytes(), log_text=''):
@@ -148,7 +147,10 @@ class SPCFileWriter:
         self.z_units = z_units
         self.res_desc = res_desc
         self.src_instrument_desc = src_instrument_desc
-        self.custom_units = custom_units
+        if custom_units:
+            self.custom_units = custom_units
+        else:
+            self.custom_units = None
         self.memo = memo
         self.custom_axis_str = custom_axis_str
         self.spectra_mod_flag = spectra_mod_flag
