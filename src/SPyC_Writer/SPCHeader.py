@@ -22,8 +22,6 @@ class SPCHeader:
     file_type: SPCFileType # (ftflags)
     num_points: int # (fnpts) or directory position for XYXYXY files
     compress_date: SPCDate # (fdate)
-    # x_values: np.ndarray = np.empty(shape=(0))
-    # y_values: np.ndarray = np.empty(shape=(0))
     x_values: np.ndarray = field(default_factory=lambda: np.empty(shape=(0)))
     y_values: np.ndarray = field(default_factory=lambda: np.empty(shape=(0)))
     file_version: int = 0x4B # (fversn)
