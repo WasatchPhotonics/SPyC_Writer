@@ -11,7 +11,7 @@ Validation has been done on Y, XY, XYYY, and XYXYXY file types. All instances we
 [Wiley's Know It All](https://sciencesolutions.wiley.com/knowitall-spectroscopy-software/) was used also for validating and
 it successfully parsed all formats except XYXYXY, which it states is invalid.
 
-Use Python 3.10.
+Use Python 3.10+.
 
 ## Tests
 
@@ -39,3 +39,12 @@ The newer format specification document:
 
 The older format specification document (has greater detail in parts than newer doc):
 - https://ensembles-eu.metoffice.gov.uk/met-res/aries/technical/GSPC_UDF.PDF
+
+## Changelog
+
+- 2023-10-02 1.0.0
+    - fixed for Python 3.11
+- 2022-12-05 0.2.0
+    - published to PyPi
+- 2022-06-06 0.1.0
+    - initial version
