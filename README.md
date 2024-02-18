@@ -1,17 +1,22 @@
 # SPyC_Writer
 
-A writer for the Thermo Galactic SPC file format, written in Python. Only outside library used is numpy. 
-The remainder of libraries used all come from the python standard library.
-Other outside libraries are used for testing, but the core module does not use them.
+A writer for the Thermo Galactic SPC file format, widely used in Thermo 
+Scientific GRAMS and other applications, written in Python. 
 
-The module has been cross validated using https://github.com/rohanisaac/spc and [spectragryph](https://www.effemm2.de/spectragryph/)
-by parsing the output file and verifying it matches what is expected.
+The only outside library used is numpy. The remainder of libraries used all come
+from the python standard library. Other outside libraries are used for testing, 
+but the core module does not use them. Use Python 3.10+.
 
-Validation has been done on Y, XY, XYYY, and XYXYXY file types. All instances were successfully parsed.
-[Wiley's Know It All](https://sciencesolutions.wiley.com/knowitall-spectroscopy-software/) was used also for validating and
-it successfully parsed all formats except XYXYXY, which it states is invalid.
+The module has been cross-validated using https://github.com/rohanisaac/spc and 
+[spectragryph](https://www.effemm2.de/spectragryph/) by parsing the output file 
+and verifying it matches what is expected.
 
-Use Python 3.10+.
+Validation has been done on Y, XY, XYYY, and XYXYXY file types. All instances 
+were successfully parsed.
+
+[Wiley's Know It All](https://sciencesolutions.wiley.com/knowitall-spectroscopy-software/) 
+was also used for validating. It successfully parsed all formats except XYXYXY, which it 
+states is invalid.
 
 ## Tests
 
