@@ -47,6 +47,8 @@ The older format specification document (has greater detail in parts than newer 
 
 ## Changelog
 
+- 2024-12-16 1.0.1
+    - adjusted data validation to shape instead of size
 - 2023-10-02 1.0.0
     - fixed for Python 3.11
 - 2022-12-05 0.2.0
