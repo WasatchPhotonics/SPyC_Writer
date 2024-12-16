@@ -138,7 +138,7 @@ class SPCFileWriter:
         self.log_text = log_text
 
     def validate_inputs(self, x_values, y_values, z_values, w_values) -> bool:
-        if x_values.size != 0 and y_values.size != 0 and not (x_values.size == y_values.size):
+        if x_values.size != 0 and y_values.size != 0 and not (x_values.shape[-1] == y_values.shape[-1]):
             log.error(f"got x and y values of different size. Arrays must be so same length.")
             return False
         if x_values.size == 0:
