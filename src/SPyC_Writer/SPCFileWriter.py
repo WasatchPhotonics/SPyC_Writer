@@ -66,8 +66,8 @@ class SPCFileWriter:
                  file_version: int = 0x4B,
                  experiment_type: SPCTechType = SPCTechType.SPCTechGen,
                  exponent: int = 0, # available but not supported
-                 first_x: int = 0,
-                 last_x: int = 0,
+                 first_x: float = 0,
+                 last_x: float = 0,
                  x_units: SPCXType = SPCXType.SPCXArb,
                  y_units: SPCYType = SPCYType.SPCYArb, 
                  z_units: SPCXType = SPCXType.SPCXArb,
