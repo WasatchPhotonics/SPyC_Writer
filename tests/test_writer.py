@@ -6,26 +6,38 @@ import datetime
 import pytest
 import numpy as np
 import spc_spectra as spc
-from hypothesis import settings, given, strategies as st
+from hypothesis import assume, settings, given, strategies as st
 
 sys.path.append(os.path.join(os.getcwd(),"src")) # Adds higher directory to python modules path.
 
 from SPyC_Writer.SPCFileWriter import SPCFileWriter
-from SPyC_Writer.SPCEnums import SPCFileType
+from SPyC_Writer.SPCEnums import *
 
 from SPyC_Writer.common import RES_DESC_LIMIT, SRC_INSTRUMENT_LIMIT
 
+HALF_PRECISION = 16
 
 # from hyptohesis docs. Allows for multidim lists with same length
 # https://hypothesis.readthedocs.io/en/latest/data.html
-two_rectangle_lists = st.integers(min_value=2, max_value=10).flatmap(
-    lambda n: st.lists(st.lists(st.floats(width=16), min_size=2, max_size=n), min_size=2,max_size=2)
-).filter(lambda x: len(x[0]) == len(x[1]))
+@st.composite
+def two_rectangle_lists(draw):
+    list_len = draw(st.integers(min_value=2, max_value=10))
+    number = st.floats(width=HALF_PRECISION)
+    list = st.lists(number, min_size=2, max_size=list_len)
+    xs = draw(list)
+    ys = draw(list)
+    assume(len(xs) == len(ys))
+    return (xs,ys)
 
 # flatmap on a tuple, first element is number of columns, second element is max number of rows
-rectangle_lists = st.tuples(st.integers(min_value=2, max_value=10), st.integers(min_value=2, max_value=10)).flatmap(
-    lambda n : st.lists(st.lists(st.floats(width=16), min_size=n[0], max_size=n[0]), min_size=2,max_size=n[1])
-)
+@st.composite
+def rectangle_lists(draw):
+    cols = draw(st.integers(min_value=2, max_value=10))
+    rows = draw(st.integers(min_value=2, max_value=10))
+    number = st.floats(width=HALF_PRECISION)
+    row = st.lists(number, min_size=cols, max_size=cols)
+    rect = draw(st.lists(row, min_size=2,max_size=rows))
+    return rect
 
 log = logging.getLogger(__name__)
 @pytest.fixture
@@ -71,7 +83,7 @@ class TestWritingParse:
             log.debug(f"sub is {data.sub[0].__dict__}")
             return False
 
-    @given(st.lists(st.floats(width=16, allow_nan=False), min_size=2, max_size=30))
+    @given(st.lists(st.floats(width=HALF_PRECISION, allow_nan=False), min_size=2, max_size=30))
     @settings(deadline=None, max_examples=30)
     def test_y_format(self, y_values: list[float]) -> None:
         writer = SPCFileWriter(SPCFileType.DEFAULT)
@@ -80,8 +92,7 @@ class TestWritingParse:
         writer.write_spc_file(file_output, y_values=y_values)
         assert self.comapre_spc_file_array(file_output, y_values), "y format spc output array doesn't match parse"
 
-    @given(two_rectangle_lists)
-    @settings(deadline=None, max_examples=30)
+    @given(two_rectangle_lists())
     def test_xy_format(self, arr_values: list[float]) -> None:
         log.debug("testing xy format")
         y_values = arr_values[0]
@@ -93,8 +104,7 @@ class TestWritingParse:
         writer.write_spc_file(file_output, y_values=y_values, x_values=x_values)
         assert self.comapre_spc_file_array(file_output, x_values, axis="x-xy") and self.comapre_spc_file_array(file_output, y_values), "xy format spc output array doesn't match parse"
 
-    @given(rectangle_lists)
-    @settings(deadline=None, max_examples=30)
+    @given(rectangle_lists())
     def test_yyy_format(self, y_values: list[float]) -> None:
         """
         File type is tested even though KIA reports invalid while others parse successfully
@@ -105,10 +115,10 @@ class TestWritingParse:
         writer.write_spc_file(file_output, y_values=y_values)
         assert self.comapre_spc_file_array(file_output, y_values), "yyy format spc output array doesn't match parse"
 
-    @given(st.lists(st.floats(width=16, allow_nan=False), min_size=2, max_size=30),
-           st.integers(min_value=0, max_value=31),
-           st.integers(min_value=0, max_value=30),
-           st.integers(min_value=0, max_value=31),
+    @given(st.lists(st.floats(width=HALF_PRECISION, allow_nan=False), min_size=2, max_size=30),
+           st.integers(min_value=SPCXType.SPCXArb, max_value=SPCXType.SPCXAngst),
+           st.integers(min_value=SPCYType.SPCYArb, max_value=SPCYType.SPCYSRot),
+           st.integers(min_value=SPCXType.SPCXArb, max_value=SPCXType.SPCXAngst), # metoffice docs explicitly say x and z use same enum
            # hypothesis generates all sorts of unicode, which we expect to be invalid
            # check cases that should always be valid by generating ASCII
            st.text(alphabet=st.characters(min_codepoint = 32, max_codepoint = 126), max_size = RES_DESC_LIMIT),
