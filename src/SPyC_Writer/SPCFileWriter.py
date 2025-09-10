@@ -192,6 +192,7 @@ class SPCFileWriter:
 
         header = SPCHeader(
             file_type = self.file_type,
+            file_version=self.file_version,
             num_points = points_count,
             compress_date = SPCDate(self.compress_date),
             x_values = x_values,
@@ -212,7 +213,7 @@ class SPCFileWriter:
             num_w_planes = self.num_w_planes,
             w_plane_inc = self.w_plane_inc,
             w_units = self.w_units,
-            generate_log = generate_log
+            generate_log = generate_log,
             )
         file_header = header.generate_header()
         file_output = b"".join([file_output, file_header])

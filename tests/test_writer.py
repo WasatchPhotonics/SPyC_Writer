@@ -1,7 +1,10 @@
 import os
 import sys
+import shutil
 import logging
 import datetime
+import platform
+import subprocess
 
 import pytest
 import numpy as np
@@ -16,6 +19,10 @@ from SPyC_Writer.SPCEnums import *
 from SPyC_Writer.common import RES_DESC_LIMIT, SRC_INSTRUMENT_LIMIT
 
 HALF_PRECISION = 16
+CWD = os.getcwd()
+DATA_DIR = os.path.join(CWD,"tests","data")
+REPO_URL = "https://github.com/lincosamides/spc-sdk.git"
+TEMP_CLONE_DIR = "temp_repo"
 
 # from hyptohesis docs. Allows for multidim lists with same length
 # https://hypothesis.readthedocs.io/en/latest/data.html
@@ -39,11 +46,26 @@ def rectangle_lists(draw):
     rect = draw(st.lists(row, min_size=2,max_size=rows))
     return rect
 
+def get_spc_sdk_data():
+    try:
+        temp_dir = os.path.join(CWD,"tests", TEMP_CLONE_DIR)
+        subprocess.run(["git", "clone", REPO_URL, temp_dir], check=True)
+        shutil.move(os.path.join(temp_dir, "data"), DATA_DIR)
+        if platform.system() == "Windows":
+            subprocess.run(["rmdir", "/S", "/Q", temp_dir], shell=True, check=True)
+        else:
+            subprocess.run(["rm", "-rf", temp_dir], check=True)
+    except Exception as e:
+        print(f"Failed to clone repo or extract 'data': {e}")
+
+
 log = logging.getLogger(__name__)
 @pytest.fixture
 def setup():
     if not os.path.isdir(TestWritingParse.OUTPUT_DIR):
         os.makedirs(TestWritingParse.OUTPUT_DIR)
+    if not os.path.isdir(DATA_DIR):
+        get_spc_sdk_data()
     yield
     TestWritingParse.clean_up_files()
 
@@ -152,3 +174,46 @@ class TestWritingParse:
         comparison = [inputs == outputs for inputs, outputs in zip(comparison_inputs, comparison_outputs)]
         assert all(comparison), f"input data {comparison_inputs}\n and output data {comparison_outputs}\nheaders didn't match"
 
+    def test_sdk(self):
+        spc_xy = spc.File(os.path.join(DATA_DIR, "s_xy.spc"))
+        bin_data = bytes()
+        log_str = ""
+        if(hasattr(spc_xy,"logbins")):
+            bin_data = spc_xy.logbins
+        if(hasattr(spc_xy,"logtxto")):
+            log_str = spc_xy.logtxto
+        log.debug(spc_xy.ftflg)
+        log.debug(spc_xy.fversn)
+        cmnt = spc_xy.cmnt.encode("utf-8")[2:-1].decode("utf-8").replace("\\x00","")
+        custom = spc_xy.fcatxt.decode("utf-8").split("\x00")[:3]
+        writer = SPCFileWriter(
+            file_type=SPCFileType(int.from_bytes(spc_xy.ftflg)),
+            num_pts=len(spc_xy.x),
+            compress_date=datetime.datetime.fromtimestamp(spc_xy.fdate),
+            file_version=int.from_bytes(spc_xy.fversn),
+            experiment_type=spc_xy.fexper,
+            exponent=spc_xy.fexp,
+            first_x=spc_xy.ffirst,
+            last_x=spc_xy.flast,
+            x_units=spc_xy.fxtype,
+            y_units=spc_xy.fytype,
+            z_units=spc_xy.fztype,
+            res_desc=spc_xy.fres.decode("utf-8"),
+            src_instrument_desc=spc_xy.fsource.decode("utf-8"),
+            custom_units=custom,
+            memo=cmnt, # spc doesn't decode right so you get "b'your msg\x00\x00'", need to strip byte type and interior ""
+            spectra_mod_flag=spc_xy.fmods,
+            z_subfile_inc=spc_xy.fzinc,
+            num_w_planes=spc_xy.fwplanes,
+            w_plane_inc=spc_xy.fwinc,
+            w_units=int.from_bytes(spc_xy.fwtype),
+            log_data=bin_data,
+            log_text=log_str
+        )
+        if spc_xy.dat_fmt.endswith('-xy'):
+            writer.write_spc_file("testOutput.spc", np.asarray([s.y for s in spc_xy.sub]), np.asarray([s.x for s in spc_xy.sub]))
+        else:
+            writer.write_spc_file("testOutput.spc", np.asarray([s.y for s in spc_xy.sub]), spc_xy.x)
+
+        with open(os.path.join(DATA_DIR,"s_xy.spc"), "rb") as ref, open("testOutput.spc", "rb") as output:
+            assert ref == output

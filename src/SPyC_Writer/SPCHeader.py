@@ -1,6 +1,6 @@
 import logging
 from struct import pack
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, Field
 
 import numpy as np
 
@@ -53,6 +53,10 @@ class SPCHeader:
     w_plane_inc: float = 0.0 # (fwinc)
     w_units: SPCXType = SPCXType.SPCXArb # (freserv)
     generate_log: bool = False
+    
+    def __post_init__(self):
+        if(type(self.custom_axes) == Field):
+            self.custom_axes = self.custom_axes.default_factory()
 
     def generate_header(self) -> bytes:
         Bfile_type = self.file_type.to_bytes(1, byteorder="little")
@@ -81,7 +85,7 @@ class SPCHeader:
         spare = bytes(bytearray(b"\x00\x00\x00\x00"*SPARE_LIMIT))
         Bmemo = bytearray(self.memo, encoding="utf-8")
         Bmemo = fit_byte_block(Bmemo, MEMO_LIMIT)
-        Bcustom_axes = b"\x00".join([bytes(ax, encoding="utf-8") for ax in self.custom_axes.default_factory()])
+        Bcustom_axes = b"\x00".join([bytes(ax, encoding="utf-8") for ax in self.custom_axes])
         Bcustom_axes = fit_byte_block(bytearray(Bcustom_axes), AXES_LIMIT)
         log_offset = self.calc_log_offset(self.file_type, self.num_subfiles, self.x_values, self.y_values) # (flogoff)
         if self.file_type & SPCFileType.TMULTI and self.file_type & SPCFileType.TXVALS:
