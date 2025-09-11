@@ -30,16 +30,16 @@ class SPCSubheader:
         if self.noise_value is None:
             Bnoise_value = b"\x00\x00\x00\x00"
         else:
-            Bnoise_value = pack("f", self.noise_value)
+            Bnoise_value = pack("<f", self.noise_value)
         if self.num_points is None:
             Bnum_points = b"\x00\x00\x00\x00"
         else:
-            Bnum_points = pack("l", self.num_points)
+            Bnum_points = pack("<l", self.num_points)
         if self.num_coadded is None:
             Bnum_coadded = b"\x00\x00\x00\x00"
         else:
-            Bnum_coadded = pack("l", self.num_coadded)
-        Bw_axis_value = pack("f", self.w_axis_value)
+            Bnum_coadded = pack("<l", self.num_coadded)
+        Bw_axis_value = pack("<f", self.w_axis_value)
         extra = b"\x00\x00\x00\x00" # (subresv) 4 null bytes for the reserved portion
         subheader = b''.join([Bsubfile_flags, 
                               Bexponent, 
