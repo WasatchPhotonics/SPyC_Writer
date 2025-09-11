@@ -12,3 +12,6 @@ dynamic = ["version", "description"]
 
 [project.urls]
 Home = "https://github.com/WasatchPhotonics/SPyC_Writer"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
