@@ -65,9 +65,9 @@ class SPCHeader:
         else:
             log.debug(f"uneven, x will be specified, setting points count to 0")
             Bnum_points = b"\x00\x00\x00\x00"
-        Bfirst_x = pack("d", self.first_x)
-        Blast_x = pack("d", self.last_x)
-        Bnum_subfiles = pack("l", self.num_subfiles)
+        Bfirst_x = pack("<d", self.first_x)
+        Blast_x = pack("<d", self.last_x)
+        Bnum_subfiles = pack("<l", self.num_subfiles)
         Bx_units = self.x_units.to_bytes(1, "little")
         By_units = self.y_units.to_bytes(1, "little")
         Bz_units = self.z_units.to_bytes(1, "little")
@@ -77,7 +77,7 @@ class SPCHeader:
         Bres_desc = fit_byte_block(Bres_desc, RES_DESC_LIMIT)
         Bsrc_instrument_desc = bytearray(self.src_instrument_desc, encoding="utf-8")
         Bsrc_instrument_desc = fit_byte_block(Bsrc_instrument_desc, SRC_INSTRUMENT_LIMIT)
-        Bpeak_point = pack("e", self.peak_point)
+        Bpeak_point = pack("<e", self.peak_point)
         spare = bytes(bytearray(b"\x00\x00\x00\x00"*SPARE_LIMIT))
         Bmemo = bytearray(self.memo, encoding="utf-8")
         Bmemo = fit_byte_block(Bmemo, MEMO_LIMIT)
@@ -92,16 +92,16 @@ class SPCHeader:
                 Bnum_points = log_offset.to_bytes(4, byteorder="little") # only TXYXYS changes num_points to dir offset
             log_offset += self.num_subfiles * 12 # spc.h defines each dir entry as 12 bytes, one entry per subfile
         if self.generate_log:
-            Blog_offset = pack("l", log_offset)
+            Blog_offset = pack("<l", log_offset)
         else:
             Blog_offset = b"\x00\x00\x00\x00"
         Blog_offset = b"\x00\x00\x00\x00"
-        Bspectra_mod_flag = pack("l", self.spectra_mod_flag)
+        Bspectra_mod_flag = pack("<l", self.spectra_mod_flag)
         Bprocess_code = self.process_code.to_bytes(1, byteorder = "little")
         Bmethod_file = fit_byte_block(bytearray(self.method_file), METHOD_FILE_LIMIT)
-        Bz_subfile_inc = pack("f", self.z_subfile_inc)
-        Bnum_w_planes = pack("l", self.num_w_planes)
-        Bw_plane_inc = pack("f", self.w_plane_inc)
+        Bz_subfile_inc = pack("<f", self.z_subfile_inc)
+        Bnum_w_planes = pack("<l", self.num_w_planes)
+        Bw_plane_inc = pack("<f", self.w_plane_inc)
         Bw_units = self.w_units.to_bytes(1, byteorder="little")
         Breserved = bytes(bytearray(b"\x00"*RESERVE_LIMIT))
         field_bytes = [
