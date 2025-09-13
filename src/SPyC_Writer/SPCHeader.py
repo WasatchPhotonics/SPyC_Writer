@@ -102,7 +102,7 @@ class SPCHeader:
         Blog_offset = b"\x00\x00\x00\x00"
         Bspectra_mod_flag = pack("<l", self.spectra_mod_flag)
         Bprocess_code = self.process_code.to_bytes(1, byteorder = "little")
-        Bmethod_file = fit_byte_block(bytearray(self.method_file), METHOD_FILE_LIMIT)
+        Bmethod_file = fit_byte_block(bytearray(self.method_file.encode("utf-8")), METHOD_FILE_LIMIT)
         Bz_subfile_inc = pack("<f", self.z_subfile_inc)
         Bnum_w_planes = pack("<l", self.num_w_planes)
         Bw_plane_inc = pack("<f", self.w_plane_inc)
