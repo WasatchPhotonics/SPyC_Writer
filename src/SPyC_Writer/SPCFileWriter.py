@@ -68,7 +68,7 @@ class SPCFileWriter:
         compress_date: datetime = datetime.now(),
         file_version: int = 0x4B,
         experiment_type: SPCTechType = SPCTechType.SPCTechGen,
-        exponent: int = 0,  # available but not supported
+        exponent: int = -128,  # available but not supported
         first_x: float = 0,
         last_x: float = 0,
         x_units: SPCXType = SPCXType.SPCXArb,
@@ -233,7 +233,7 @@ class SPCFileWriter:
             #calib_plus_one=self.calib_plus_one,
             #sample_inject=self.sample_inject,
             #data_mul=self.data_mul,
-            method_file=self.method_file,
+            method_file=self.method_file.encode("utf-8"),
             z_subfile_inc=self.z_subfile_inc,
             num_w_planes=self.num_w_planes,
             w_plane_inc=self.w_plane_inc,
