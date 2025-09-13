@@ -47,7 +47,7 @@ class SPCHeader:
     calib_plus_one: int = b"\x00" # (flevel) old format doc says galactic internal use and should be null
     sample_inject: int = b"\x00\x00" # (fsampin) spc.h lists 1 as valid, old format doc says only for galactic internal use and should be null
     data_mul: float = b"\x00\x00\x00\x00" # (ffactor) old format doc says galactic internal use only and should be null
-    method_file: str = b"\x00" # (fmethod) according to pdf it seems to just be the string rep of a file name for program data. Although old doc also says this should be null
+    method_file: str = b"\x00" # (fmethod) according to pdf it seems to just be the string rep of a file name for program data. Old doc says should be null so 4D should be empty but 4B can have value
     z_subfile_inc: float = 1.0 # (fzinc)
     num_w_planes: float = 0 # (fwplanes)
     w_plane_inc: float = 0.0 # (fwinc)

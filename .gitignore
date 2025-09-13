@@ -136,4 +136,6 @@ err.txt
 
 # Used by test scripts to output spc files
 SPC_Output/*
+tests/data
 
+testOutput.spc

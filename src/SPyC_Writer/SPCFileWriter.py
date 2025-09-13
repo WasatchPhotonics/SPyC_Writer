@@ -21,6 +21,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+
 # See the following refernces for details on the .spc file format implementation
 # https://github.com/bz-dev/spc-sdk
 # https://www.yumpu.com/en/document/read/40416248/a-brief-guide-to-spc-file-format-and-using-gspcio
@@ -47,10 +48,10 @@ from .SPCLog import SPCLog
 from .SPCDate import SPCDate
 from .SPCHeader import SPCHeader
 from .SPCSubheader import SPCSubheader
-from .SPCEnums import SPCFileType, SPCModFlags, \
-   SPCTechType, SPCXType, SPCYType
+from .SPCEnums import SPCFileType, SPCModFlags, SPCTechType, SPCXType, SPCYType
 
 log = logging.getLogger(__name__)
+
 
 class SPCFileWriter:
     """
@@ -59,34 +60,37 @@ class SPCFileWriter:
     x data points and y data points are passed in via 2 different 2d arrays
     Only new format is currently supported.
     """
-    def __init__(self,
-                 file_type: SPCFileType,
-                 num_pts: int = 0, # according to the docs if given num_pts, first_x, and last_x then it will calculate an evenly spaced x axis
-                 compress_date: datetime = datetime.now(),
-                 file_version: int = 0x4B,
-                 experiment_type: SPCTechType = SPCTechType.SPCTechGen,
-                 exponent: int = 0, # available but not supported
-                 first_x: float = 0,
-                 last_x: float = 0,
-                 x_units: SPCXType = SPCXType.SPCXArb,
-                 y_units: SPCYType = SPCYType.SPCYArb, 
-                 z_units: SPCXType = SPCXType.SPCXArb,
-                 res_desc: str = "",
-                 src_instrument_desc: str = "",
-                 custom_units: list[str] = field(default_factory=list),
-                 memo: str = "",
-                 custom_axis_str: str = "",
-                 spectra_mod_flag: SPCModFlags = SPCModFlags.UNMOD,
-                 z_subfile_inc: float = 1.0,
-                 num_w_planes: float = 0,
-                 w_plane_inc: float = 1.0,
-                 w_units: SPCXType = SPCXType.SPCXArb,
-                 log_data: bytes = bytes(),
-                 log_text: str = "",
-                 )-> None:
+
+    def __init__(
+        self,
+        file_type: SPCFileType,
+        num_pts: int = 0,  # according to the docs if given num_pts, first_x, and last_x then it will calculate an evenly spaced x axis
+        compress_date: datetime = datetime.now(),
+        file_version: int = 0x4B,
+        experiment_type: SPCTechType = SPCTechType.SPCTechGen,
+        exponent: int = 0,  # available but not supported
+        first_x: float = 0,
+        last_x: float = 0,
+        x_units: SPCXType = SPCXType.SPCXArb,
+        y_units: SPCYType = SPCYType.SPCYArb,
+        z_units: SPCXType = SPCXType.SPCXArb,
+        res_desc: str = "",
+        src_instrument_desc: str = "",
+        custom_units: list[str] = field(default_factory=list),
+        memo: str = "",
+        method_file: str = "",
+        custom_axis_str: str = "",
+        spectra_mod_flag: SPCModFlags = SPCModFlags.UNMOD,
+        z_subfile_inc: float = 1.0,
+        num_w_planes: float = 0,
+        w_plane_inc: float = 1.0,
+        w_units: SPCXType = SPCXType.SPCXArb,
+        log_data: bytes = bytes(),
+        log_text: str = "",
+    ) -> None:
         """
         According to the formatting document the following file types are most common.
-        For the respective file type, the corresponding initialization parameters 
+        For the respective file type, the corresponding initialization parameters
         and arrays to the write function should be passed at a minimum
         ------------------
         Single File Even X
@@ -136,14 +140,23 @@ class SPCFileWriter:
         self.w_units = w_units
         self.log_data = log_data
         self.log_text = log_text
+        self.method_file = method_file
 
     def validate_inputs(self, x_values, y_values, z_values, w_values) -> bool:
-        if x_values.size != 0 and y_values.size != 0 and not (x_values.shape[-1] == y_values.shape[-1]):
-            log.error(f"got x and y values of different size. Arrays must be so same length.")
+        if (
+            x_values.size != 0
+            and y_values.size != 0
+            and not (x_values.shape[-1] == y_values.shape[-1])
+        ):
+            log.error(
+                f"got x and y values of different size. Arrays must be so same length."
+            )
             return False
         if x_values.size == 0:
             if self.file_type == SPCFileType.TXVALS:
-                log.error(f"no x values received but file type is a shared x values type")
+                log.error(
+                    f"no x values received but file type is a shared x values type"
+                )
                 return False
             self.first_x = 0
             self.last_x = len(y_values)
@@ -152,14 +165,14 @@ class SPCFileWriter:
             self.last_x = np.amax(x_values)
         return True
 
-
-    def write_spc_file(self,
-                       file_name: str, 
-                       y_values: np.ndarray,
-                       x_values: np.ndarray = np.empty(shape=(0)),
-                       z_values: np.ndarray = np.empty(shape=(0)),
-                       w_values: np.ndarray = np.empty(shape=(0)),
-                       ) -> bool:
+    def write_spc_file(
+        self,
+        file_name: str,
+        y_values: np.ndarray,
+        x_values: np.ndarray = np.empty(shape=(0)),
+        z_values: np.ndarray = np.empty(shape=(0)),
+        w_values: np.ndarray = np.empty(shape=(0)),
+    ) -> bool:
         file_output = b""
         generate_log = False
         if not self.validate_inputs(x_values, y_values, z_values, w_values):
@@ -167,12 +180,16 @@ class SPCFileWriter:
             return False
         if not (self.file_type & SPCFileType.TMULTI):
             points_count = len(y_values)
-        elif self.file_type & SPCFileType.TMULTI and not (self.file_type & SPCFileType.TXYXYS):
-            points_count = len(y_values[0]) # since x values are evenly spaced y values shouldn't be jagged array
+        elif self.file_type & SPCFileType.TMULTI and not (
+            self.file_type & SPCFileType.TXYXYS
+        ):
+            points_count = len(
+                y_values[0]
+            )  # since x values are evenly spaced y values shouldn't be jagged array
         else:
             # num_points for XYXYXY is instead supposed to be the byte offset to the directory
             # or null and there is no directory
-            points_count = 0 
+            points_count = 0
             self.exponent = self.calculate_exponent(x_values, y_values)
         if len(y_values.shape) == 1:
             num_traces = 1
@@ -191,44 +208,58 @@ class SPCFileWriter:
         Bx_values = self.convert_points(x_values, np.single)
 
         header = SPCHeader(
-            file_type = self.file_type,
+            file_type=self.file_type,
+            num_points=points_count,
+            compress_date=SPCDate(self.compress_date),
+            x_values=x_values,
+            y_values=y_values,
             file_version=self.file_version,
-            num_points = points_count,
-            compress_date = SPCDate(self.compress_date),
-            x_values = x_values,
-            y_values = y_values,
-            experiment_type = self.experiment_type,
-            first_x = self.first_x,
-            last_x = self.last_x,
-            num_subfiles = num_traces,
-            x_units = self.x_units,
-            y_units = self.y_units,
-            z_units = self.z_units,
-            res_desc = self.res_desc,
-            src_instrument_desc = self.src_instrument_desc,
-            memo = self.memo,
-            custom_axes = self.custom_units,
-            spectra_mod_flag = self.spectra_mod_flag,
-            z_subfile_inc = self.z_subfile_inc,
-            num_w_planes = self.num_w_planes,
-            w_plane_inc = self.w_plane_inc,
-            w_units = self.w_units,
-            generate_log = generate_log,
-            )
+            experiment_type=self.experiment_type,
+            exponent=self.exponent,
+            first_x=self.first_x,
+            last_x=self.last_x,
+            num_subfiles=num_traces,
+            x_units=self.x_units,
+            y_units=self.y_units,
+            z_units=self.z_units,
+            #post_disposition=self.post_disposition,
+            res_desc=self.res_desc,
+            src_instrument_desc=self.src_instrument_desc,
+            #peak_point=self.peak_point,
+            memo=self.memo,
+            custom_axes=self.custom_units,
+            spectra_mod_flag=self.spectra_mod_flag,
+            #process_code=self.process_code,
+            #calib_plus_one=self.calib_plus_one,
+            #sample_inject=self.sample_inject,
+            #data_mul=self.data_mul,
+            method_file=self.method_file,
+            z_subfile_inc=self.z_subfile_inc,
+            num_w_planes=self.num_w_planes,
+            w_plane_inc=self.w_plane_inc,
+            w_units=self.w_units,
+            generate_log=generate_log,
+        )
         file_header = header.generate_header()
         file_output = b"".join([file_output, file_header])
 
-        if (self.file_type & SPCFileType.TXVALS) and not (self.file_type & SPCFileType.TXYXYS):
-            file_output = b"".join([file_output, Bx_values]) # x values should be a flat array so shouldn't be any issues with this
+        if (self.file_type & SPCFileType.TXVALS) and not (
+            self.file_type & SPCFileType.TXYXYS
+        ):
+            file_output = b"".join(
+                [file_output, Bx_values]
+            )  # x values should be a flat array so shouldn't be any issues with this
 
         dir_pointers = []
         for i in range(num_traces):
             subfile = b""
             w_val = 0
             if w_values.size != 0:
-                w_val = w_values[math.floor(i/w_values(len))]
+                w_val = w_values[math.floor(i / w_values(len))]
             if SPCFileType.TXYXYS & self.file_type:
-                points_count = len(y_values[i]) # inverse from header, header it is 0, here it's the length of a specific y input
+                points_count = len(
+                    y_values[i]
+                )  # inverse from header, header it is 0, here it's the length of a specific y input
             sub_header = b""
             if len(z_values) == 0:
                 z_val = 0
@@ -240,16 +271,19 @@ class SPCFileWriter:
                 except:
                     z_val = 0
 
-            subheader = SPCSubheader(start_z = z_val,
-                                   sub_index = i, 
-                                   num_points = points_count,
-                                   w_axis_value = w_val)
+            subheader = SPCSubheader(
+                start_z=z_val, sub_index=i, num_points=points_count, w_axis_value=w_val
+            )
             if self.file_type & SPCFileType.TXYXYS:
-                bx = self.convert_points(x_values[i], "<f4") #self.convert_points(np.ones(shape=(1952,)), "<f4")#self.convert_points(x_values[i], "<f4")
+                bx = self.convert_points(
+                    x_values[i], "<f4"
+                )  # self.convert_points(np.ones(shape=(1952,)), "<f4")#self.convert_points(x_values[i], "<f4")
                 by = self.convert_points(y_values[i], "<f4")
                 sub_head = subheader.generate_subheader()
                 subfile = b"".join([sub_head, bx, by])
-            elif self.file_type & SPCFileType.TMULTI and not (self.file_type & SPCFileType.TXYXYS):
+            elif self.file_type & SPCFileType.TMULTI and not (
+                self.file_type & SPCFileType.TXYXYS
+            ):
                 sub_head = subheader.generate_subheader()
                 subfile = b"".join([sub_head, self.convert_points(y_values[i], "<f4")])
             else:
@@ -267,10 +301,12 @@ class SPCFileWriter:
             log.debug(f"generating spc log")
             log_head = SPCLog(self.log_data, self.log_text)
             log_header = log_head.generate_log_header()
-            file_output = b"".join([file_output, log_header, self.log_data, self.log_text.encode()])
+            file_output = b"".join(
+                [file_output, log_header, self.log_data, self.log_text.encode()]
+            )
 
         try:
-            with open(file_name, 'wb') as f:
+            with open(file_name, "wb") as f:
                 f.write(file_output)
                 return True
         except Exception as e:
@@ -303,7 +339,9 @@ class SPCFileWriter:
             product /= 2
             exponent += 1
             if exponent > 127:
-                log.error(f"exponent is only a signed byte. Cannot store greater than 127")
+                log.error(
+                    f"exponent is only a signed byte. Cannot store greater than 127"
+                )
                 raise
         return exponent
 
@@ -315,7 +353,3 @@ class SPCFileWriter:
         """
         data_points = data_points.astype(conversion)
         return data_points.tobytes()
-
-            
-
-
