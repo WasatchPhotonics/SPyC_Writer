@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class SPCSubheader:
     subfile_flags: SPCSubfileFlags = SPCSubfileFlags.SUBNONE # (subflgs)
-    exponent: int = -128 # (subexp) -128 so it will be an IEEE 32bit float
+    exponent: int = 128 # (subexp) -128 so it will be an IEEE 32bit float
     sub_index: int = 0 # (subindx)
     start_z: float = 0.0 # (subtime) looking at spc.h, z appears to be a time value so won't pass array of data points like x or y
     end_z: float = None # (subnext)
@@ -20,7 +20,7 @@ class SPCSubheader:
 
     def generate_subheader(self) -> bytes:
         Bsubfile_flags = self.subfile_flags.to_bytes(1, byteorder="little")
-        Bexponent = pack("<b", self.exponent)
+        Bexponent = self.exponent.to_bytes(1, byteorder="little")
         Bsub_index = pack("<H", self.sub_index)
         Bstart_z = pack("<f", self.start_z)
         if self.end_z is None:

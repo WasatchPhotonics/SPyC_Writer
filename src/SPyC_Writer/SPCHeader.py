@@ -26,7 +26,7 @@ class SPCHeader:
     y_values: np.ndarray = field(default_factory=lambda: np.empty(shape=(0)))
     file_version: int = 0x4B # (fversn)
     experiment_type: SPCTechType = SPCTechType.SPCTechGen # (fexper)
-    exponent: int = -128 # (fexp)
+    exponent: int = 128 # (fexp)
     first_x: float = 0 # (ffirst)
     last_x: float = 0 # (flast)
     num_subfiles: int = 0 # (fnsub)
@@ -62,7 +62,7 @@ class SPCHeader:
         Bfile_type = self.file_type.to_bytes(1, byteorder="little")
         Bfile_version = self.file_version.to_bytes(1, byteorder = "little")
         Bexperiment_type = self.experiment_type.to_bytes(1, byteorder = "little")
-        Bexponent = self.exponent.to_bytes(1, byteorder = "little", signed=True)
+        Bexponent = self.exponent.to_bytes(1, byteorder = "little")
         if not (self.file_type & SPCFileType.TXYXYS):
             log.debug(f"header is even spaced or not XYXYXY, setting num points to count {self.num_points}")
             Bnum_points = self.num_points.to_bytes(4, byteorder="little")

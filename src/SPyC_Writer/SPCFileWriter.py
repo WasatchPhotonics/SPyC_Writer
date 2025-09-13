@@ -48,7 +48,7 @@ from .SPCLog import SPCLog
 from .SPCDate import SPCDate
 from .SPCHeader import SPCHeader
 from .SPCSubheader import SPCSubheader
-from .SPCEnums import SPCFileType, SPCModFlags, SPCTechType, SPCXType, SPCYType
+from .SPCEnums import SPCFileType, SPCModFlags, SPCTechType, SPCXType, SPCYType, SPCSubfileFlags
 
 log = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class SPCFileWriter:
         compress_date: datetime = datetime.now(),
         file_version: int = 0x4B,
         experiment_type: SPCTechType = SPCTechType.SPCTechGen,
-        exponent: int = -128,  # available but not supported
+        exponent: int = 128,  # available but not supported
         first_x: float = 0,
         last_x: float = 0,
         x_units: SPCXType = SPCXType.SPCXArb,
@@ -204,8 +204,8 @@ class SPCFileWriter:
         if len(self.log_data) > 0 or len(self.log_text) > 0:
             generate_log = True
 
-        By_values = self.convert_points(y_values, np.single)
-        Bx_values = self.convert_points(x_values, np.single)
+        By_values = self.convert_points(y_values, self.file_type, self.exponent)
+        Bx_values = self.points_to_data(x_values, np.single)
 
         header = SPCHeader(
             file_type=self.file_type,
@@ -272,20 +272,28 @@ class SPCFileWriter:
                     z_val = 0
 
             subheader = SPCSubheader(
-                start_z=z_val, sub_index=i, num_points=points_count, w_axis_value=w_val
+                subfile_flags = SPCSubfileFlags.SUBNONE,
+                exponent = self.exponent,
+                sub_index = i,
+                start_z = z_val,
+                #end_z = self.end_z,
+                #noise_value = self.noise_value,
+                num_points = points_count,
+                #num_coadded = self.num_coadded,
+                w_axis_value = w_val,
             )
             if self.file_type & SPCFileType.TXYXYS:
-                bx = self.convert_points(
+                bx = self.points_to_data(
                     x_values[i], "<f4"
                 )  # self.convert_points(np.ones(shape=(1952,)), "<f4")#self.convert_points(x_values[i], "<f4")
-                by = self.convert_points(y_values[i], "<f4")
+                by = self.convert_points(y_values[i], self.file_type, self.exponent)
                 sub_head = subheader.generate_subheader()
                 subfile = b"".join([sub_head, bx, by])
             elif self.file_type & SPCFileType.TMULTI and not (
                 self.file_type & SPCFileType.TXYXYS
             ):
                 sub_head = subheader.generate_subheader()
-                subfile = b"".join([sub_head, self.convert_points(y_values[i], "<f4")])
+                subfile = b"".join([sub_head, self.convert_points(y_values[i], self.file_type, self.exponent)])
             else:
                 sub_head = subheader.generate_subheader()
                 subfile = b"".join([sub_head, By_values])
@@ -345,11 +353,25 @@ class SPCFileWriter:
                 raise
         return exponent
 
-    def convert_points(self, data_points: np.ndarray, conversion: np.dtype) -> bytes:
+    def convert_points(self, data_points: np.ndarray, file_type: SPCFileType, exponent: int) -> bytes:
+        """
+        Takes a numpy array of data points and converts them based on the file type and exponent then to bytes.
+        """
+        log.debug(f"point convert, expontent is {exponent}")
+        if(exponent == 128): # 80 so IEEE
+            log.debug("exponent is 128 so just get data")
+            return self.points_to_data(data_points, np.dtype("<f4"))
+        elif(file_type & 1): # TSPREC is first bit so 16 bit nums
+            conversion = np.vectorize(lambda x : ((2**16)*x)/(2**exponent))
+            return self.points_to_data(conversion(data_points), np.dtype("i4"))
+        else:
+            conversion = np.vectorize(lambda x : ((2**32)*x)/(2**exponent))
+            return self.points_to_data(conversion(data_points), np.dtype("i4"))
+             
+    def points_to_data(self, data_points: np.ndarray, conversion: np.dtype) -> bytes:
         """
         Takes a numpy array of data points and converts them to single precision floats.
-        Then converts them to a string of bytes. Currently only supports the single precision.
-        Does not support the spc specific exponent representation of floating point numbers.
+        Then converts them to a string of bytes.
         """
         data_points = data_points.astype(conversion)
         return data_points.tobytes()

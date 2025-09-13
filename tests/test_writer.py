@@ -202,6 +202,7 @@ class TestWritingParse:
             src_instrument_desc=spc_xy.fsource.decode("utf-8"),
             custom_units=custom,
             memo=cmnt, # spc doesn't decode right so you get "b'your msg\x00\x00'", need to strip byte type and interior ""
+            method_file=spc_xy.fmethod.decode("utf-8"),
             spectra_mod_flag=spc_xy.fmods,
             z_subfile_inc=spc_xy.fzinc,
             num_w_planes=spc_xy.fwplanes,
