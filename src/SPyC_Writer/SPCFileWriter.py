@@ -36,6 +36,7 @@ SOFTWARE.
 # XYXYXY files are successfully parsed by spectragryph and rohanisaac
 # KIA states they are invalid though.
 
+import sys
 import math
 import logging
 from struct import pack
@@ -69,7 +70,7 @@ class SPCFileWriter:
         compress_date: Optional[datetime] = datetime.now(),
         file_version: int = 0x4B,
         experiment_type: SPCTechType = SPCTechType.SPCTechGen,
-        exponent: int = 128,  # available but not supported
+        exponent: int = sys.maxsize,
         first_x: float = float('nan'),
         last_x: float = float('nan'),
         x_units: SPCXType = SPCXType.SPCXArb,
@@ -185,7 +186,7 @@ class SPCFileWriter:
             log.error(f"invalid inputs, returning false")
             return False
         points_count = self.parse_num_points(self.num_pts, x_values, y_values, self.file_type)
-        if len(y_values.shape) == 1:
+        if len(y_values.shape) == 1 and type(y_values[0]) != np.ndarray:
             num_traces = 1
         else:
             num_traces = y_values.shape[0]
@@ -200,6 +201,8 @@ class SPCFileWriter:
 
 
         log.debug(f"make header first x is {self.first_x}")
+        if(self.exponent == sys.maxsize):
+            self.exponent = 128 # a multi should calc exp before this. If still max then didn't get arg and didn't derive so default 128
         header = SPCHeader(
             file_type=self.file_type,
             num_points=points_count,
@@ -266,10 +269,16 @@ class SPCFileWriter:
                     z_val = z_values[i]
                 except:
                     z_val = 0
+            
+            subexp = self.exponent
+            if SPCFileType.TMULTI & self.file_type and x_values.size != 0:
+                subexp = self.calculate_exponent(x_values[i], y_values[i])
+            elif SPCFileType.TMULTI & self.file_type:
+                subexp = self.calculate_exponent(None, y_values[i])
 
             subheader = SPCSubheader(
                 subfile_flags = SPCSubfileFlags.SUBNONE,
-                exponent = self.exponent,
+                exponent = subexp,
                 sub_index = i,
                 start_z = z_val,
                 #end_z = self.end_z,
@@ -300,6 +309,7 @@ class SPCFileWriter:
                 subfile = b"".join([sub_head, By_values])
 
             pointer = self.generate_dir_pointer(len(file_output), len(subfile), z_val)
+            log.debug(f"{pointer=}")
             dir_pointers.append(pointer)
             file_output = b"".join([file_output, subfile])
 
@@ -339,14 +349,24 @@ class SPCFileWriter:
         A max_x that is only a very small decimal should be very rare so shouldn't need to worry about
         shifting the decimal right.
         """
-        max_x = abs(np.max(x_values))
+        if(self.exponent != sys.maxsize):
+            return self.exponent
+        power = 2**32
+        if(self.file_type & SPCFileType.SIXTEENPREC):
+            power = 2**16
+        max_x = None
+        if x_values is not None:
+            max_x = abs(np.max(x_values))
         max_y = abs(np.max(y_values))
-        max_num = max([max_x, max_y])
-        log.debug(f"{max_x=}")
-        log.debug(f"{max_y=}")
-        product = max_num * (2**16)
+        max_num = max_y
+        if(max_x is not None):
+            max_num = max([max_x, max_y])
+        product = max_num * (power)
+        log.debug(f"{max_num=}")
+        log.debug(f"{power=}")
+        log.debug(f"{product=}")
         exponent = 0
-        while product > 2**16:
+        while product > power:
             product /= 2
             exponent += 1
             if exponent > 127:
@@ -354,7 +374,6 @@ class SPCFileWriter:
                     f"exponent is only a signed byte. Cannot store greater than 127"
                 )
                 raise
-        log.debug(f"{exponent=}")
         return exponent+1
 
     def parse_num_points(self, num_points, x_values, y_values, file_type):
