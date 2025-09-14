@@ -280,6 +280,8 @@ class SPCFileWriter:
             )
             if(len(y_values.shape) > 1):
                 By_values = self.convert_points(y_values[i], self.file_type, self.exponent)
+            elif(type(y_values[i]) == np.ndarray):
+                By_values = self.convert_points(y_values[i], self.file_type, self.exponent)
             else:
                 By_values = self.convert_points(y_values, self.file_type, self.exponent)
             if self.file_type & SPCFileType.TXYXYS:
