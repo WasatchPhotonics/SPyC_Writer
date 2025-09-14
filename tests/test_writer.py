@@ -83,7 +83,7 @@ def compare_file_output(file_name: str, ignore_bytes: list[int] = None):
         date = None
     writer = SPCFileWriter(
         file_type=SPCFileType(int.from_bytes(spc_xy.ftflg)),
-        num_pts=len(spc_xy.x),
+        num_pts=spc_xy.fnpts,
         compress_date=date,
         file_version=int.from_bytes(spc_xy.fversn),
         experiment_type=spc_xy.fexper,
@@ -109,7 +109,7 @@ def compare_file_output(file_name: str, ignore_bytes: list[int] = None):
         log_text=log_str
     )
     if spc_xy.dat_fmt.endswith('-xy'):
-        writer.write_spc_file("testOutput.spc", np.asarray([s.y for s in spc_xy.sub]), np.asarray([s.x for s in spc_xy.sub]))
+        writer.write_spc_file("testOutput.spc", np.asarray([s.y for s in spc_xy.sub], dtype=object), np.asarray([s.x for s in spc_xy.sub], dtype=object))
     else:
         writer.write_spc_file("testOutput.spc", spc_xy.sub[0].y, spc_xy.x)
 
@@ -243,6 +243,9 @@ class TestWritingParse:
         # since this can't be derived ignore for now, will likely support passing end user made subheaders in the future
         compare_file_output("s_evenx.spc", [512])
 
+    def test_m_xyxy_sdk(self):
+        compare_file_output("m_xyxy.spc", [])    
+        
     def test_xy_sdk(self):
         # ignored bytes
         # 2576 - This is the subheader subnpts for sub 0, spc_spectra indicates this value is 4

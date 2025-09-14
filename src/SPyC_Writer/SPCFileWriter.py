@@ -82,7 +82,7 @@ class SPCFileWriter:
         custom_axis_str: str = "",
         spectra_mod_flag: SPCModFlags = SPCModFlags.UNMOD,
         process_code: SPCProcessCode = SPCProcessCode.PPNONE,
-        sample_inject: int = b"\x00\x00", # (fsampin) spc.h lists 1 as valid, old format doc says only for galactic internal use and should be null
+        sample_inject: int = 0, # (fsampin) spc.h lists 1 as valid, old format doc says only for galactic internal use and should be null
         method_file: str = "",
         z_subfile_inc: float = 1.0,
         num_w_planes: float = 0,
@@ -154,7 +154,7 @@ class SPCFileWriter:
             and not (x_values.shape[-1] == y_values.shape[-1])
         ):
             log.error(
-                f"got x and y values of different size. Arrays must be so same length."
+                f"got x and y values of different size. Arrays must be same length."
             )
             return False
         if x_values.size == 0:
@@ -198,8 +198,6 @@ class SPCFileWriter:
         if len(self.log_data) > 0 or len(self.log_text) > 0:
             generate_log = True
 
-        By_values = self.convert_points(y_values, self.file_type, self.exponent)
-        Bx_values = self.points_to_data(x_values, np.single)
 
         log.debug(f"make header first x is {self.first_x}")
         header = SPCHeader(
@@ -241,6 +239,7 @@ class SPCFileWriter:
         if (self.file_type & SPCFileType.TXVALS) and not (
             self.file_type & SPCFileType.TXYXYS
         ):
+            Bx_values = self.points_to_data(x_values, np.single)
             file_output = b"".join(
                 [file_output, Bx_values]
             )  # x values should be a flat array so shouldn't be any issues with this
@@ -279,18 +278,21 @@ class SPCFileWriter:
                 #num_coadded = self.num_coadded,
                 w_axis_value = w_val,
             )
+            if(len(y_values.shape) > 1):
+                By_values = self.convert_points(y_values[i], self.file_type, self.exponent)
+            else:
+                By_values = self.convert_points(y_values, self.file_type, self.exponent)
             if self.file_type & SPCFileType.TXYXYS:
                 bx = self.points_to_data(
                     x_values[i], "<f4"
                 )  # self.convert_points(np.ones(shape=(1952,)), "<f4")#self.convert_points(x_values[i], "<f4")
-                by = self.convert_points(y_values[i], self.file_type, self.exponent)
                 sub_head = subheader.generate_subheader()
-                subfile = b"".join([sub_head, bx, by])
+                subfile = b"".join([sub_head, bx, By_values])
             elif self.file_type & SPCFileType.TMULTI and not (
                 self.file_type & SPCFileType.TXYXYS
             ):
                 sub_head = subheader.generate_subheader()
-                subfile = b"".join([sub_head, self.convert_points(y_values[i], self.file_type, self.exponent)])
+                subfile = b"".join([sub_head, By_values])
             else:
                 sub_head = subheader.generate_subheader()
                 subfile = b"".join([sub_head, By_values])
@@ -335,12 +337,14 @@ class SPCFileWriter:
         A max_x that is only a very small decimal should be very rare so shouldn't need to worry about
         shifting the decimal right.
         """
-        max_x = abs(np.amax(x_values))
-        max_y = abs(np.amax(y_values))
+        max_x = abs(np.max(x_values))
+        max_y = abs(np.max(y_values))
         max_num = max([max_x, max_y])
-        product = max_num * (2**32)
+        log.debug(f"{max_x=}")
+        log.debug(f"{max_y=}")
+        product = max_num * (2**16)
         exponent = 0
-        while product > 2**32:
+        while product > 2**16:
             product /= 2
             exponent += 1
             if exponent > 127:
@@ -348,7 +352,8 @@ class SPCFileWriter:
                     f"exponent is only a signed byte. Cannot store greater than 127"
                 )
                 raise
-        return exponent
+        log.debug(f"{exponent=}")
+        return exponent+1
 
     def parse_num_points(self, num_points, x_values, y_values, file_type):
         points_count = 0
@@ -367,7 +372,7 @@ class SPCFileWriter:
             # or null and there is no directory
             log.debug(f"xyxys setting 0")
             points_count = 0
-            self.exponent = self.calculate_exponent(x_values, y_values)
+            self.exponent = self.calculate_exponent(x_values[0], y_values[0])
         return points_count
 
     def convert_points(self, data_points: np.ndarray, file_type: SPCFileType, exponent: int) -> bytes:
