@@ -42,13 +42,14 @@ from struct import pack
 from datetime import datetime
 from dataclasses import field
 
-import numpy as np
-
 from .SPCLog import SPCLog
 from .SPCDate import SPCDate
 from .SPCHeader import SPCHeader
 from .SPCSubheader import SPCSubheader
 from .SPCEnums import SPCFileType, SPCModFlags, SPCTechType, SPCXType, SPCYType, SPCSubfileFlags, SPCProcessCode
+
+import numpy as np
+from typing import Optional
 
 log = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ class SPCFileWriter:
         self,
         file_type: SPCFileType,
         num_pts: int = 0,  # according to the docs if given num_pts, first_x, and last_x then it will calculate an evenly spaced x axis
-        compress_date: datetime = datetime.now(),
+        compress_date: Optional[datetime] = datetime.now(),
         file_version: int = 0x4B,
         experiment_type: SPCTechType = SPCTechType.SPCTechGen,
         exponent: int = 128,  # available but not supported
@@ -254,6 +255,8 @@ class SPCFileWriter:
                 points_count = len(
                     y_values[i]
                 )  # inverse from header, header it is 0, here it's the length of a specific y input
+            else:
+                points_count = 0
             sub_header = b""
             if len(z_values) == 0:
                 z_val = 0
@@ -272,7 +275,7 @@ class SPCFileWriter:
                 start_z = z_val,
                 #end_z = self.end_z,
                 #noise_value = self.noise_value,
-                num_points = points_count,
+                num_points = points_count*2, # *2 since x AND y according to spec
                 #num_coadded = self.num_coadded,
                 w_axis_value = w_val,
             )
