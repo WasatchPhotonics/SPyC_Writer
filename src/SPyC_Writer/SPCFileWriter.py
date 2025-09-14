@@ -48,7 +48,7 @@ from .SPCLog import SPCLog
 from .SPCDate import SPCDate
 from .SPCHeader import SPCHeader
 from .SPCSubheader import SPCSubheader
-from .SPCEnums import SPCFileType, SPCModFlags, SPCTechType, SPCXType, SPCYType, SPCSubfileFlags
+from .SPCEnums import SPCFileType, SPCModFlags, SPCTechType, SPCXType, SPCYType, SPCSubfileFlags, SPCProcessCode
 
 log = logging.getLogger(__name__)
 
@@ -69,8 +69,8 @@ class SPCFileWriter:
         file_version: int = 0x4B,
         experiment_type: SPCTechType = SPCTechType.SPCTechGen,
         exponent: int = 128,  # available but not supported
-        first_x: float = 0,
-        last_x: float = 0,
+        first_x: float = float('nan'),
+        last_x: float = float('nan'),
         x_units: SPCXType = SPCXType.SPCXArb,
         y_units: SPCYType = SPCYType.SPCYArb,
         z_units: SPCXType = SPCXType.SPCXArb,
@@ -78,9 +78,11 @@ class SPCFileWriter:
         src_instrument_desc: str = "",
         custom_units: list[str] = field(default_factory=list),
         memo: str = "",
-        method_file: str = "",
         custom_axis_str: str = "",
         spectra_mod_flag: SPCModFlags = SPCModFlags.UNMOD,
+        process_code: SPCProcessCode = SPCProcessCode.PPNONE,
+        sample_inject: int = b"\x00\x00", # (fsampin) spc.h lists 1 as valid, old format doc says only for galactic internal use and should be null
+        method_file: str = "",
         z_subfile_inc: float = 1.0,
         num_w_planes: float = 0,
         w_plane_inc: float = 1.0,
@@ -134,6 +136,7 @@ class SPCFileWriter:
         self.memo = memo
         self.custom_axis_str = custom_axis_str
         self.spectra_mod_flag = spectra_mod_flag
+        self.process_code = process_code
         self.z_subfile_inc = z_subfile_inc
         self.num_w_planes = num_w_planes
         self.w_plane_inc = w_plane_inc
@@ -141,6 +144,7 @@ class SPCFileWriter:
         self.log_data = log_data
         self.log_text = log_text
         self.method_file = method_file
+        self.sample_inject = sample_inject
 
     def validate_inputs(self, x_values, y_values, z_values, w_values) -> bool:
         if (
@@ -160,8 +164,9 @@ class SPCFileWriter:
                 return False
             self.first_x = 0
             self.last_x = len(y_values)
-        else:
+        if(self.first_x == float('nan')):
             self.first_x = np.amin(x_values)
+        if(self.last_x == float('nan')):
             self.last_x = np.amax(x_values)
         return True
 
@@ -178,19 +183,7 @@ class SPCFileWriter:
         if not self.validate_inputs(x_values, y_values, z_values, w_values):
             log.error(f"invalid inputs, returning false")
             return False
-        if not (self.file_type & SPCFileType.TMULTI):
-            points_count = len(y_values)
-        elif self.file_type & SPCFileType.TMULTI and not (
-            self.file_type & SPCFileType.TXYXYS
-        ):
-            points_count = len(
-                y_values[0]
-            )  # since x values are evenly spaced y values shouldn't be jagged array
-        else:
-            # num_points for XYXYXY is instead supposed to be the byte offset to the directory
-            # or null and there is no directory
-            points_count = 0
-            self.exponent = self.calculate_exponent(x_values, y_values)
+        points_count = self.parse_num_points(self.num_pts, x_values, y_values, self.file_type)
         if len(y_values.shape) == 1:
             num_traces = 1
         else:
@@ -207,6 +200,7 @@ class SPCFileWriter:
         By_values = self.convert_points(y_values, self.file_type, self.exponent)
         Bx_values = self.points_to_data(x_values, np.single)
 
+        log.debug(f"make header first x is {self.first_x}")
         header = SPCHeader(
             file_type=self.file_type,
             num_points=points_count,
@@ -229,9 +223,9 @@ class SPCFileWriter:
             memo=self.memo,
             custom_axes=self.custom_units,
             spectra_mod_flag=self.spectra_mod_flag,
-            #process_code=self.process_code,
+            process_code=self.process_code,
             #calib_plus_one=self.calib_plus_one,
-            #sample_inject=self.sample_inject,
+            sample_inject=self.sample_inject.to_bytes(2, byteorder="little"),
             #data_mul=self.data_mul,
             method_file=self.method_file.encode("utf-8"),
             z_subfile_inc=self.z_subfile_inc,
@@ -352,6 +346,26 @@ class SPCFileWriter:
                 )
                 raise
         return exponent
+
+    def parse_num_points(self, num_points, x_values, y_values, file_type):
+        points_count = 0
+        if not (self.file_type & SPCFileType.TMULTI):
+            log.debug(f"not multi setting len y {len(y_values)} {y_values.shape}")
+            points_count = len(y_values)
+        elif self.file_type & SPCFileType.TMULTI and not (
+            self.file_type & SPCFileType.TXYXYS
+        ):
+            log.debug(f"multi but xyxys setting len y {len(y_values[0])}")
+            points_count = len(
+                y_values[0]
+            )  # since x values are evenly spaced y values shouldn't be jagged array
+        else:
+            # num_points for XYXYXY is instead supposed to be the byte offset to the directory
+            # or null and there is no directory
+            log.debug(f"xyxys setting 0")
+            points_count = 0
+            self.exponent = self.calculate_exponent(x_values, y_values)
+        return points_count
 
     def convert_points(self, data_points: np.ndarray, file_type: SPCFileType, exponent: int) -> bytes:
         """

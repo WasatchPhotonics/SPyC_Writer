@@ -1,5 +1,6 @@
 import os
 import sys
+import ast
 import shutil
 import logging
 import datetime
@@ -7,6 +8,7 @@ import platform
 import subprocess
 
 import pytest
+import pprint
 import numpy as np
 import spc_spectra as spc
 from hypothesis import assume, settings, given, strategies as st
@@ -184,12 +186,14 @@ class TestWritingParse:
             log_str = spc_xy.logtxto
         log.debug(spc_xy.ftflg)
         log.debug(spc_xy.fversn)
-        cmnt = spc_xy.cmnt.encode("utf-8")[2:-1].decode("utf-8").replace("\\x00","")
+        log.debug(f"fcmnt type is {type(spc_xy.fcmnt)}")
+        cmnt = ast.literal_eval(spc_xy.fcmnt).decode("utf-8")
         custom = spc_xy.fcatxt.decode("utf-8").split("\x00")[:3]
+        date = datetime.datetime(minute=spc_xy.minute, hour=spc_xy.hour, day=spc_xy.day, month=spc_xy.month, year=spc_xy.year)
         writer = SPCFileWriter(
             file_type=SPCFileType(int.from_bytes(spc_xy.ftflg)),
             num_pts=len(spc_xy.x),
-            compress_date=datetime.datetime.fromtimestamp(spc_xy.fdate),
+            compress_date=date,
             file_version=int.from_bytes(spc_xy.fversn),
             experiment_type=spc_xy.fexper,
             exponent=spc_xy.fexp,
@@ -202,8 +206,10 @@ class TestWritingParse:
             src_instrument_desc=spc_xy.fsource.decode("utf-8"),
             custom_units=custom,
             memo=cmnt, # spc doesn't decode right so you get "b'your msg\x00\x00'", need to strip byte type and interior ""
+            sample_inject=spc_xy.fsampin,
             method_file=spc_xy.fmethod.decode("utf-8"),
             spectra_mod_flag=spc_xy.fmods,
+            process_code=int.from_bytes(spc_xy.fprocs),
             z_subfile_inc=spc_xy.fzinc,
             num_w_planes=spc_xy.fwplanes,
             w_plane_inc=spc_xy.fwinc,
@@ -214,7 +220,13 @@ class TestWritingParse:
         if spc_xy.dat_fmt.endswith('-xy'):
             writer.write_spc_file("testOutput.spc", np.asarray([s.y for s in spc_xy.sub]), np.asarray([s.x for s in spc_xy.sub]))
         else:
-            writer.write_spc_file("testOutput.spc", np.asarray([s.y for s in spc_xy.sub]), spc_xy.x)
+            writer.write_spc_file("testOutput.spc", spc_xy.sub[0].y, spc_xy.x)
 
         with open(os.path.join(DATA_DIR,"s_xy.spc"), "rb") as ref, open("testOutput.spc", "rb") as output:
-            assert ref == output
+            files_same = ref == output
+            if not files_same:
+                refB = (b for b in ref.read())
+                outB = (b for b in output.read())
+                diffs = [(idx, pair[0], pair[1]) for idx, pair in enumerate(zip(refB, outB)) if pair[0] != pair[1]]
+                pprint.pprint(diffs)
+                assert False, "File contents did not match"
