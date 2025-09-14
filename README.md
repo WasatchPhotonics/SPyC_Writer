@@ -28,7 +28,6 @@ parsing.
 
 - Widen support for other SPC aspects that are currently listed as unsupported
 	- Allow old file format
-	- Provide option for not writing as IEEE float
 	- etc.
 - Troubleshoot why KIA considers XYXYXY formats invalid
 - Expand tests
