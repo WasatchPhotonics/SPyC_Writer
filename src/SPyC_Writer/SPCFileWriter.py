@@ -21,6 +21,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+
 # See the following refernces for details on the .spc file format implementation
 # https://github.com/bz-dev/spc-sdk
 # https://www.yumpu.com/en/document/read/40416248/a-brief-guide-to-spc-file-format-and-using-gspcio
@@ -35,22 +36,24 @@ SOFTWARE.
 # XYXYXY files are successfully parsed by spectragryph and rohanisaac
 # KIA states they are invalid though.
 
+import sys
 import math
 import logging
 from struct import pack
 from datetime import datetime
 from dataclasses import field
 
-import numpy as np
-
 from .SPCLog import SPCLog
 from .SPCDate import SPCDate
 from .SPCHeader import SPCHeader
 from .SPCSubheader import SPCSubheader
-from .SPCEnums import SPCFileType, SPCModFlags, \
-   SPCTechType, SPCXType, SPCYType
+from .SPCEnums import SPCFileType, SPCModFlags, SPCTechType, SPCXType, SPCYType, SPCSubfileFlags, SPCProcessCode
+
+import numpy as np
+from typing import Optional
 
 log = logging.getLogger(__name__)
+
 
 class SPCFileWriter:
     """
@@ -59,34 +62,39 @@ class SPCFileWriter:
     x data points and y data points are passed in via 2 different 2d arrays
     Only new format is currently supported.
     """
-    def __init__(self,
-                 file_type: SPCFileType,
-                 num_pts: int = 0, # according to the docs if given num_pts, first_x, and last_x then it will calculate an evenly spaced x axis
-                 compress_date: datetime = datetime.now(),
-                 file_version: int = 0x4B,
-                 experiment_type: SPCTechType = SPCTechType.SPCTechGen,
-                 exponent: int = 0, # available but not supported
-                 first_x: int = 0,
-                 last_x: int = 0,
-                 x_units: SPCXType = SPCXType.SPCXArb,
-                 y_units: SPCYType = SPCYType.SPCYArb, 
-                 z_units: SPCXType = SPCXType.SPCXArb,
-                 res_desc: str = "",
-                 src_instrument_desc: str = "",
-                 custom_units: list[str] = field(default_factory=list),
-                 memo: str = "",
-                 custom_axis_str: str = "",
-                 spectra_mod_flag: SPCModFlags = SPCModFlags.UNMOD,
-                 z_subfile_inc: float = 1.0,
-                 num_w_planes: float = 0,
-                 w_plane_inc: float = 1.0,
-                 w_units: SPCXType = SPCXType.SPCXArb,
-                 log_data: bytes = bytes(),
-                 log_text: str = "",
-                 )-> None:
+
+    def __init__(
+        self,
+        file_type: SPCFileType,
+        num_pts: int = 0,  # according to the docs if given num_pts, first_x, and last_x then it will calculate an evenly spaced x axis
+        compress_date: Optional[datetime] = datetime.now(),
+        file_version: int = 0x4B,
+        experiment_type: SPCTechType = SPCTechType.SPCTechGen,
+        exponent: int = sys.maxsize,
+        first_x: float = float('nan'),
+        last_x: float = float('nan'),
+        x_units: SPCXType = SPCXType.SPCXArb,
+        y_units: SPCYType = SPCYType.SPCYArb,
+        z_units: SPCXType = SPCXType.SPCXArb,
+        res_desc: str = "",
+        src_instrument_desc: str = "",
+        custom_units: list[str] = field(default_factory=list),
+        memo: str = "",
+        custom_axis_str: str = "",
+        spectra_mod_flag: SPCModFlags = SPCModFlags.UNMOD,
+        process_code: SPCProcessCode = SPCProcessCode.PPNONE,
+        sample_inject: int = 0, # (fsampin) spc.h lists 1 as valid, old format doc says only for galactic internal use and should be null
+        method_file: str = "",
+        z_subfile_inc: float = 1.0,
+        num_w_planes: float = 0,
+        w_plane_inc: float = 1.0,
+        w_units: SPCXType = SPCXType.SPCXArb,
+        log_data: bytes = bytes(),
+        log_text: str = "",
+    ) -> None:
         """
         According to the formatting document the following file types are most common.
-        For the respective file type, the corresponding initialization parameters 
+        For the respective file type, the corresponding initialization parameters
         and arrays to the write function should be passed at a minimum
         ------------------
         Single File Even X
@@ -130,51 +138,55 @@ class SPCFileWriter:
         self.memo = memo
         self.custom_axis_str = custom_axis_str
         self.spectra_mod_flag = spectra_mod_flag
+        self.process_code = process_code
         self.z_subfile_inc = z_subfile_inc
         self.num_w_planes = num_w_planes
         self.w_plane_inc = w_plane_inc
         self.w_units = w_units
         self.log_data = log_data
         self.log_text = log_text
+        self.method_file = method_file
+        self.sample_inject = sample_inject
 
     def validate_inputs(self, x_values, y_values, z_values, w_values) -> bool:
-        if x_values.size != 0 and y_values.size != 0 and not (x_values.shape[-1] == y_values.shape[-1]):
-            log.error(f"got x and y values of different size. Arrays must be so same length.")
+        if (
+            x_values.size != 0
+            and y_values.size != 0
+            and not (x_values.shape[-1] == y_values.shape[-1])
+        ):
+            log.error(
+                f"got x and y values of different size. Arrays must be same length."
+            )
             return False
         if x_values.size == 0:
             if self.file_type == SPCFileType.TXVALS:
-                log.error(f"no x values received but file type is a shared x values type")
+                log.error(
+                    f"no x values received but file type is a shared x values type"
+                )
                 return False
             self.first_x = 0
             self.last_x = len(y_values)
-        else:
+        if(self.first_x == float('nan')):
             self.first_x = np.amin(x_values)
+        if(self.last_x == float('nan')):
             self.last_x = np.amax(x_values)
         return True
 
-
-    def write_spc_file(self,
-                       file_name: str, 
-                       y_values: np.ndarray,
-                       x_values: np.ndarray = np.empty(shape=(0)),
-                       z_values: np.ndarray = np.empty(shape=(0)),
-                       w_values: np.ndarray = np.empty(shape=(0)),
-                       ) -> bool:
+    def write_spc_file(
+        self,
+        file_name: str,
+        y_values: np.ndarray,
+        x_values: np.ndarray = np.empty(shape=(0)),
+        z_values: np.ndarray = np.empty(shape=(0)),
+        w_values: np.ndarray = np.empty(shape=(0)),
+    ) -> bool:
         file_output = b""
         generate_log = False
         if not self.validate_inputs(x_values, y_values, z_values, w_values):
             log.error(f"invalid inputs, returning false")
             return False
-        if not (self.file_type & SPCFileType.TMULTI):
-            points_count = len(y_values)
-        elif self.file_type & SPCFileType.TMULTI and not (self.file_type & SPCFileType.TXYXYS):
-            points_count = len(y_values[0]) # since x values are evenly spaced y values shouldn't be jagged array
-        else:
-            # num_points for XYXYXY is instead supposed to be the byte offset to the directory
-            # or null and there is no directory
-            points_count = 0 
-            self.exponent = self.calculate_exponent(x_values, y_values)
-        if len(y_values.shape) == 1:
+        points_count = self.parse_num_points(self.num_pts, x_values, y_values, self.file_type)
+        if len(y_values.shape) == 1 and type(y_values[0]) != np.ndarray:
             num_traces = 1
         else:
             num_traces = y_values.shape[0]
@@ -187,47 +199,66 @@ class SPCFileWriter:
         if len(self.log_data) > 0 or len(self.log_text) > 0:
             generate_log = True
 
-        By_values = self.convert_points(y_values, np.single)
-        Bx_values = self.convert_points(x_values, np.single)
 
+        log.debug(f"make header first x is {self.first_x}")
+        if(self.exponent == sys.maxsize):
+            self.exponent = 128 # a multi should calc exp before this. If still max then didn't get arg and didn't derive so default 128
         header = SPCHeader(
-            file_type = self.file_type,
-            num_points = points_count,
-            compress_date = SPCDate(self.compress_date),
-            x_values = x_values,
-            y_values = y_values,
-            experiment_type = self.experiment_type,
-            first_x = self.first_x,
-            last_x = self.last_x,
-            num_subfiles = num_traces,
-            x_units = self.x_units,
-            y_units = self.y_units,
-            z_units = self.z_units,
-            res_desc = self.res_desc,
-            src_instrument_desc = self.src_instrument_desc,
-            memo = self.memo,
-            custom_axes = self.custom_units,
-            spectra_mod_flag = self.spectra_mod_flag,
-            z_subfile_inc = self.z_subfile_inc,
-            num_w_planes = self.num_w_planes,
-            w_plane_inc = self.w_plane_inc,
-            w_units = self.w_units,
-            generate_log = generate_log
-            )
+            file_type=self.file_type,
+            num_points=points_count,
+            compress_date=SPCDate(self.compress_date),
+            x_values=x_values,
+            y_values=y_values,
+            file_version=self.file_version,
+            experiment_type=self.experiment_type,
+            exponent=self.exponent,
+            first_x=self.first_x,
+            last_x=self.last_x,
+            num_subfiles=num_traces,
+            x_units=self.x_units,
+            y_units=self.y_units,
+            z_units=self.z_units,
+            #post_disposition=self.post_disposition,
+            res_desc=self.res_desc,
+            src_instrument_desc=self.src_instrument_desc,
+            #peak_point=self.peak_point,
+            memo=self.memo,
+            custom_axes=self.custom_units,
+            spectra_mod_flag=self.spectra_mod_flag,
+            process_code=self.process_code,
+            #calib_plus_one=self.calib_plus_one,
+            sample_inject=self.sample_inject.to_bytes(2, byteorder="little"),
+            #data_mul=self.data_mul,
+            method_file=self.method_file.encode("utf-8"),
+            z_subfile_inc=self.z_subfile_inc,
+            num_w_planes=self.num_w_planes,
+            w_plane_inc=self.w_plane_inc,
+            w_units=self.w_units,
+            generate_log=generate_log,
+        )
         file_header = header.generate_header()
         file_output = b"".join([file_output, file_header])
 
-        if (self.file_type & SPCFileType.TXVALS) and not (self.file_type & SPCFileType.TXYXYS):
-            file_output = b"".join([file_output, Bx_values]) # x values should be a flat array so shouldn't be any issues with this
+        if (self.file_type & SPCFileType.TXVALS) and not (
+            self.file_type & SPCFileType.TXYXYS
+        ):
+            Bx_values = self.points_to_data(x_values, np.single)
+            file_output = b"".join(
+                [file_output, Bx_values]
+            )  # x values should be a flat array so shouldn't be any issues with this
 
         dir_pointers = []
         for i in range(num_traces):
             subfile = b""
             w_val = 0
             if w_values.size != 0:
-                w_val = w_values[math.floor(i/w_values(len))]
+                w_val = w_values[math.floor(i / w_values(len))]
             if SPCFileType.TXYXYS & self.file_type:
-                points_count = len(y_values[i]) # inverse from header, header it is 0, here it's the length of a specific y input
+                points_count = len(
+                    y_values[i]
+                )  # inverse from header, header it is 0, here it's the length of a specific y input
+            else:
+                points_count = 0
             sub_header = b""
             if len(z_values) == 0:
                 z_val = 0
@@ -238,24 +269,47 @@ class SPCFileWriter:
                     z_val = z_values[i]
                 except:
                     z_val = 0
+            
+            subexp = self.exponent
+            if SPCFileType.TMULTI & self.file_type and x_values.size != 0:
+                subexp = self.calculate_exponent(x_values[i], y_values[i])
+            elif SPCFileType.TMULTI & self.file_type:
+                subexp = self.calculate_exponent(None, y_values[i])
 
-            subheader = SPCSubheader(start_z = z_val,
-                                   sub_index = i, 
-                                   num_points = points_count,
-                                   w_axis_value = w_val)
+            subheader = SPCSubheader(
+                subfile_flags = SPCSubfileFlags.SUBNONE,
+                exponent = subexp,
+                sub_index = i,
+                start_z = z_val,
+                #end_z = self.end_z,
+                #noise_value = self.noise_value,
+                num_points = points_count*2, # *2 since x AND y according to spec
+                #num_coadded = self.num_coadded,
+                w_axis_value = w_val,
+            )
+            if(len(y_values.shape) > 1):
+                By_values = self.convert_points(y_values[i], self.file_type, self.exponent)
+            elif(type(y_values[i]) == np.ndarray):
+                By_values = self.convert_points(y_values[i], self.file_type, self.exponent)
+            else:
+                By_values = self.convert_points(y_values, self.file_type, self.exponent)
             if self.file_type & SPCFileType.TXYXYS:
-                bx = self.convert_points(x_values[i], "<f4") #self.convert_points(np.ones(shape=(1952,)), "<f4")#self.convert_points(x_values[i], "<f4")
-                by = self.convert_points(y_values[i], "<f4")
+                bx = self.points_to_data(
+                    x_values[i], "<f4"
+                )  # self.convert_points(np.ones(shape=(1952,)), "<f4")#self.convert_points(x_values[i], "<f4")
                 sub_head = subheader.generate_subheader()
-                subfile = b"".join([sub_head, bx, by])
-            elif self.file_type & SPCFileType.TMULTI and not (self.file_type & SPCFileType.TXYXYS):
+                subfile = b"".join([sub_head, bx, By_values])
+            elif self.file_type & SPCFileType.TMULTI and not (
+                self.file_type & SPCFileType.TXYXYS
+            ):
                 sub_head = subheader.generate_subheader()
-                subfile = b"".join([sub_head, self.convert_points(y_values[i], "<f4")])
+                subfile = b"".join([sub_head, By_values])
             else:
                 sub_head = subheader.generate_subheader()
                 subfile = b"".join([sub_head, By_values])
 
             pointer = self.generate_dir_pointer(len(file_output), len(subfile), z_val)
+            log.debug(f"{pointer=}")
             dir_pointers.append(pointer)
             file_output = b"".join([file_output, subfile])
 
@@ -266,10 +320,12 @@ class SPCFileWriter:
             log.debug(f"generating spc log")
             log_head = SPCLog(self.log_data, self.log_text)
             log_header = log_head.generate_log_header()
-            file_output = b"".join([file_output, log_header, self.log_data, self.log_text.encode()])
+            file_output = b"".join(
+                [file_output, log_header, self.log_data, self.log_text.encode()]
+            )
 
         try:
-            with open(file_name, 'wb') as f:
+            with open(file_name, "wb") as f:
                 f.write(file_output)
                 return True
         except Exception as e:
@@ -293,28 +349,72 @@ class SPCFileWriter:
         A max_x that is only a very small decimal should be very rare so shouldn't need to worry about
         shifting the decimal right.
         """
-        max_x = abs(np.amax(x_values))
-        max_y = abs(np.amax(y_values))
-        max_num = max([max_x, max_y])
-        product = max_num * (2**32)
+        if(self.exponent != sys.maxsize):
+            return self.exponent
+        power = 2**32
+        if(self.file_type & SPCFileType.SIXTEENPREC):
+            power = 2**16
+        max_x = None
+        if x_values is not None:
+            max_x = abs(np.max(x_values))
+        max_y = abs(np.max(y_values))
+        max_num = max_y
+        if(max_x is not None):
+            max_num = max([max_x, max_y])
+        product = max_num * (power)
+        log.debug(f"{max_num=}")
+        log.debug(f"{power=}")
+        log.debug(f"{product=}")
         exponent = 0
-        while product > 2**32:
+        while product > power:
             product /= 2
             exponent += 1
             if exponent > 127:
-                log.error(f"exponent is only a signed byte. Cannot store greater than 127")
+                log.error(
+                    f"exponent is only a signed byte. Cannot store greater than 127"
+                )
                 raise
-        return exponent
+        return exponent+1
 
-    def convert_points(self, data_points: np.ndarray, conversion: np.dtype) -> bytes:
+    def parse_num_points(self, num_points, x_values, y_values, file_type):
+        points_count = 0
+        if not (self.file_type & SPCFileType.TMULTI):
+            log.debug(f"not multi setting len y {len(y_values)} {y_values.shape}")
+            points_count = len(y_values)
+        elif self.file_type & SPCFileType.TMULTI and not (
+            self.file_type & SPCFileType.TXYXYS
+        ):
+            log.debug(f"multi but xyxys setting len y {len(y_values[0])}")
+            points_count = len(
+                y_values[0]
+            )  # since x values are evenly spaced y values shouldn't be jagged array
+        else:
+            # num_points for XYXYXY is instead supposed to be the byte offset to the directory
+            # or null and there is no directory
+            log.debug(f"xyxys setting 0")
+            points_count = 0
+            self.exponent = self.calculate_exponent(x_values[0], y_values[0])
+        return points_count
+
+    def convert_points(self, data_points: np.ndarray, file_type: SPCFileType, exponent: int) -> bytes:
+        """
+        Takes a numpy array of data points and converts them based on the file type and exponent then to bytes.
+        """
+        log.debug(f"point convert, expontent is {exponent}")
+        if(exponent == 128): # 80 so IEEE
+            log.debug("exponent is 128 so just get data")
+            return self.points_to_data(data_points, np.dtype("<f4"))
+        elif(file_type & 1): # TSPREC is first bit so 16 bit nums
+            conversion = np.vectorize(lambda x : ((2**16)*x)/(2**exponent))
+            return self.points_to_data(conversion(data_points), np.dtype("i4"))
+        else:
+            conversion = np.vectorize(lambda x : ((2**32)*x)/(2**exponent))
+            return self.points_to_data(conversion(data_points), np.dtype("i4"))
+             
+    def points_to_data(self, data_points: np.ndarray, conversion: np.dtype) -> bytes:
         """
         Takes a numpy array of data points and converts them to single precision floats.
-        Then converts them to a string of bytes. Currently only supports the single precision.
-        Does not support the spc specific exponent representation of floating point numbers.
+        Then converts them to a string of bytes.
         """
         data_points = data_points.astype(conversion)
         return data_points.tobytes()
-
-            
-
-

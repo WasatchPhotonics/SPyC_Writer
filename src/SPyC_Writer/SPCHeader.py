@@ -1,6 +1,6 @@
 import logging
 from struct import pack
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, Field
 
 import numpy as np
 
@@ -26,7 +26,7 @@ class SPCHeader:
     y_values: np.ndarray = field(default_factory=lambda: np.empty(shape=(0)))
     file_version: int = 0x4B # (fversn)
     experiment_type: SPCTechType = SPCTechType.SPCTechGen # (fexper)
-    exponent: int = -128 # (fexp)
+    exponent: int = 128 # (fexp)
     first_x: float = 0 # (ffirst)
     last_x: float = 0 # (flast)
     num_subfiles: int = 0 # (fnsub)
@@ -43,22 +43,26 @@ class SPCHeader:
     # For proc codes see https://github.com/bz-dev/spc-sdk/blob/master/GRAMSDDE.H#L104
     # There are two defines for the value 1. This is explained more in their comments.
     # Rather than repeat this, I just use PPCOMP for a default of 1.
-    process_code: SPCProcessCode = SPCProcessCode.PPCOMP 
+    process_code: SPCProcessCode = SPCProcessCode.PPNONE # old doc should normally be null
     calib_plus_one: int = b"\x00" # (flevel) old format doc says galactic internal use and should be null
-    sample_inject: int = b"\x00\x00" # (fsampin) spc.h lists 1 as valid, old format doc says only for galactic internal use and should be null
+    sample_inject: bytes = b"\x00\x00" # (fsampin) spc.h lists 1 as valid, old format doc says only for galactic internal use and should be null
     data_mul: float = b"\x00\x00\x00\x00" # (ffactor) old format doc says galactic internal use only and should be null
-    method_file: str = b"\x00" # (fmethod) according to pdf it seems to just be the string rep of a file name for program data. Although old doc also says this should be null
+    method_file: str = b"\x00" # (fmethod) according to pdf it seems to just be the string rep of a file name for program data. Old doc says should be null so 4D should be empty but 4B can have value
     z_subfile_inc: float = 1.0 # (fzinc)
     num_w_planes: float = 0 # (fwplanes)
     w_plane_inc: float = 0.0 # (fwinc)
     w_units: SPCXType = SPCXType.SPCXArb # (freserv)
     generate_log: bool = False
+    
+    def __post_init__(self):
+        if(type(self.custom_axes) == Field):
+            self.custom_axes = self.custom_axes.default_factory()
 
     def generate_header(self) -> bytes:
         Bfile_type = self.file_type.to_bytes(1, byteorder="little")
         Bfile_version = self.file_version.to_bytes(1, byteorder = "little")
         Bexperiment_type = self.experiment_type.to_bytes(1, byteorder = "little")
-        Bexponent = self.exponent.to_bytes(1, byteorder = "little", signed=True)
+        Bexponent = self.exponent.to_bytes(1, byteorder = "little")
         if not (self.file_type & SPCFileType.TXYXYS):
             log.debug(f"header is even spaced or not XYXYXY, setting num points to count {self.num_points}")
             Bnum_points = self.num_points.to_bytes(4, byteorder="little")
@@ -81,7 +85,7 @@ class SPCHeader:
         spare = bytes(bytearray(b"\x00\x00\x00\x00"*SPARE_LIMIT))
         Bmemo = bytearray(self.memo, encoding="utf-8")
         Bmemo = fit_byte_block(Bmemo, MEMO_LIMIT)
-        Bcustom_axes = b"\x00".join([bytes(ax, encoding="utf-8") for ax in self.custom_axes.default_factory()])
+        Bcustom_axes = b"\x00".join([bytes(ax, encoding="utf-8") for ax in self.custom_axes])
         Bcustom_axes = fit_byte_block(bytearray(Bcustom_axes), AXES_LIMIT)
         log_offset = self.calc_log_offset(self.file_type, self.num_subfiles, self.x_values, self.y_values) # (flogoff)
         if self.file_type & SPCFileType.TMULTI and self.file_type & SPCFileType.TXVALS:

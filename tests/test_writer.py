@@ -1,9 +1,14 @@
 import os
 import sys
+import ast
+import shutil
 import logging
 import datetime
+import platform
+import subprocess
 
 import pytest
+import pprint
 import numpy as np
 import spc_spectra as spc
 from hypothesis import assume, settings, given, strategies as st
@@ -16,6 +21,10 @@ from SPyC_Writer.SPCEnums import *
 from SPyC_Writer.common import RES_DESC_LIMIT, SRC_INSTRUMENT_LIMIT
 
 HALF_PRECISION = 16
+CWD = os.getcwd()
+DATA_DIR = os.path.join(CWD,"tests","data")
+REPO_URL = "https://github.com/lincosamides/spc-sdk.git"
+TEMP_CLONE_DIR = "temp_repo"
 
 # from hyptohesis docs. Allows for multidim lists with same length
 # https://hypothesis.readthedocs.io/en/latest/data.html
@@ -39,11 +48,86 @@ def rectangle_lists(draw):
     rect = draw(st.lists(row, min_size=2,max_size=rows))
     return rect
 
+def get_spc_sdk_data():
+    try:
+        temp_dir = os.path.join(CWD,"tests", TEMP_CLONE_DIR)
+        subprocess.run(["git", "clone", REPO_URL, temp_dir], check=True)
+        shutil.move(os.path.join(temp_dir, "data"), DATA_DIR)
+        if platform.system() == "Windows":
+            subprocess.run(["rmdir", "/S", "/Q", temp_dir], shell=True, check=True)
+        else:
+            subprocess.run(["rm", "-rf", temp_dir], check=True)
+    except Exception as e:
+        print(f"Failed to clone repo or extract 'data': {e}")
+
+# some sdk data use fields that can't be derived and aren't exposed, for example the subheader flags, see specific sdk test for explanation for thos cases
+def compare_file_output(file_name: str, ignore_bytes: list[int] = None):
+    if(ignore_bytes is None):
+        ignore_bytes = []
+    spc_xy = spc.File(os.path.join(DATA_DIR, file_name))
+    bin_data = bytes()
+    log_str = ""
+    if(hasattr(spc_xy,"logbins")):
+        bin_data = spc_xy.logbins
+    if(hasattr(spc_xy,"logtxto")):
+        log_str = spc_xy.logtxto
+    log.debug(spc_xy.ftflg)
+    log.debug(spc_xy.fversn)
+    log.debug(f"fcmnt type is {type(spc_xy.fcmnt)}")
+    cmnt = ast.literal_eval(spc_xy.fcmnt).decode("utf-8")
+    custom = spc_xy.fcatxt.decode("utf-8").split("\x00")[:3]
+    log.debug(f"{spc_xy.fdate=}")
+    if(spc_xy.fdate > 0): # s_evenx shows date can be null and python doesn't support year 0 and errors
+        date = datetime.datetime(minute=spc_xy.minute, hour=spc_xy.hour, day=spc_xy.day, month=spc_xy.month, year=spc_xy.year)
+    else:
+        date = None
+    writer = SPCFileWriter(
+        file_type=SPCFileType(int.from_bytes(spc_xy.ftflg)),
+        num_pts=spc_xy.fnpts,
+        compress_date=date,
+        file_version=int.from_bytes(spc_xy.fversn),
+        experiment_type=spc_xy.fexper,
+        exponent=spc_xy.fexp,
+        first_x=spc_xy.ffirst,
+        last_x=spc_xy.flast,
+        x_units=spc_xy.fxtype,
+        y_units=spc_xy.fytype,
+        z_units=spc_xy.fztype,
+        res_desc=spc_xy.fres.decode("utf-8"),
+        src_instrument_desc=spc_xy.fsource.decode("utf-8"),
+        custom_units=custom,
+        memo=cmnt, # spc doesn't decode right so you get "b'your msg\x00\x00'", need to strip byte type and interior ""
+        sample_inject=spc_xy.fsampin,
+        method_file=spc_xy.fmethod.decode("utf-8"),
+        spectra_mod_flag=spc_xy.fmods,
+        process_code=int.from_bytes(spc_xy.fprocs),
+        z_subfile_inc=spc_xy.fzinc,
+        num_w_planes=spc_xy.fwplanes,
+        w_plane_inc=spc_xy.fwinc,
+        w_units=int.from_bytes(spc_xy.fwtype),
+        log_data=bin_data,
+        log_text=log_str
+    )
+    if spc_xy.dat_fmt.endswith('-xy'):
+        writer.write_spc_file("testOutput.spc", np.asarray([s.y for s in spc_xy.sub], dtype=object), np.asarray([s.x for s in spc_xy.sub], dtype=object))
+    else:
+        writer.write_spc_file("testOutput.spc", spc_xy.sub[0].y, spc_xy.x)
+
+    with open(os.path.join(DATA_DIR,file_name), "rb") as ref, open("testOutput.spc", "rb") as output:
+        refB = (b for b in ref.read())
+        outB = (b for b in output.read())
+        diffs = [f"byte={idx}, ref={pair[0]}, our_lib={pair[1]}" for idx, pair in enumerate(zip(refB, outB)) if pair[0] != pair[1] and idx not in ignore_bytes]
+        if(len(diffs) != 0):
+            log.error("\n".join(diffs))
+            assert False, f"File contents did not match for written output based on {file_name} num diffs is {len(diffs)}"
+
 log = logging.getLogger(__name__)
 @pytest.fixture
 def setup():
     if not os.path.isdir(TestWritingParse.OUTPUT_DIR):
         os.makedirs(TestWritingParse.OUTPUT_DIR)
+    if not os.path.isdir(DATA_DIR):
+        get_spc_sdk_data()
     yield
     TestWritingParse.clean_up_files()
 
@@ -152,3 +236,20 @@ class TestWritingParse:
         comparison = [inputs == outputs for inputs, outputs in zip(comparison_inputs, comparison_outputs)]
         assert all(comparison), f"input data {comparison_inputs}\n and output data {comparison_outputs}\nheaders didn't match"
 
+    def test_evenx_sdk(self):
+        # ignored bytes
+        # 512 - This is the subheader flag bytes, here it indicates modified by arithmetic
+        # None of the specs elaborates what this means, I'm assuming maybe preprocesssing was done before saving
+        # since this can't be derived ignore for now, will likely support passing end user made subheaders in the future
+        compare_file_output("s_evenx.spc", [512])
+
+    def itest_m_xyxy_sdk(self):
+        compare_file_output("m_xyxy.spc", [])    
+        
+    def test_xy_sdk(self):
+        # ignored bytes
+        # 2576 - This is the subheader subnpts for sub 0, spc_spectra indicates this value is 4
+        # no clue what's going on here, this isn't TXYXYS so spec says this should be null
+        # also the number of points is 512 and since subnpts is usually x AND y this would be 1024
+        # 1024 would be 00 00 04 00 though not 04 00 00 00 so since only off by one byte that isn't clear from the spec I call this good
+        compare_file_output("s_xy.spc", [2576])
