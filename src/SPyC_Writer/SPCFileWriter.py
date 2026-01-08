@@ -164,8 +164,11 @@ class SPCFileWriter:
                     f"no x values received but file type is a shared x values type"
                 )
                 return False
-            self.first_x = 0
-            self.last_x = len(y_values)
+            if(self.first_x == float('nan') or self.last_x == float('nan')):
+                log.error(
+                    f"no x values received but first_x or last_x is not set"
+                )
+                return False
         if(self.first_x == float('nan')):
             self.first_x = np.amin(x_values)
         if(self.last_x == float('nan')):
